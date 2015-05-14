@@ -1,11 +1,12 @@
 {
   "name": "lambdacube-webgl",
-  "version": "0.1.0",
+  "homepage": "https://github.com/lambdacube3d/lambdacube-webgl",
+  "description": "WebGL backend for LambdaCube 3D",
   "authors": [
     "Csaba Hruska <csaba.hruska@gmail.com>"
   ],
-  "moduleType": [
-    "node"
+  "keywords": [
+    "purescript"
   ],
   "license": "BSD3",
   "ignore": [
