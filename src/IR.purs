@@ -273,6 +273,7 @@ data ImageSemantic
     | Stencil
     | Color
 
+type ClearImage = {semantic :: ImageSemantic, value :: Value}
 data Command
     = SetRasterContext          RasterContext
     | SetAccumulationContext    AccumulationContext
@@ -282,7 +283,7 @@ data Command
     | SetTexture                TextureUnit TextureName             -- binds texture to the specified texture unit
     | SetSampler                TextureUnit (Maybe SamplerName)     -- binds sampler to the specified texture unit
     | RenderSlot                SlotName
-    | ClearRenderTarget         [{semantic :: ImageSemantic, value :: Value}]
+    | ClearRenderTarget         [ClearImage]
     | GenerateMipMap            TextureUnit
     | SaveImage                 FrameBufferComponent ImageRef                            -- from framebuffer component to texture (image)
     | LoadImage                 ImageRef FrameBufferComponent                            -- from texture (image) to framebuffer component
@@ -309,11 +310,12 @@ type SamplerDescriptor =
     , samplerCompareFunc    :: Maybe ComparisonFunction
     }
 
+type Parameter = {name::String,ty::InputType}
 type Program =   -- AST, input
     { programUniforms   :: StrMap InputType    -- uniform input (value based uniforms only / no textures)
-    , programStreams    :: StrMap {name::String,ty::InputType}  -- vertex shader input attribute name -> (slot attribute name, attribute type)
+    , programStreams    :: StrMap Parameter  -- vertex shader input attribute name -> (slot attribute name, attribute type)
     , programInTextures :: StrMap InputType               -- all textures (uniform textures and render textures) referenced by the program
-    , programOutput     :: [{name::String,ty::InputType}]
+    , programOutput     :: [Parameter]
     , vertexShader      :: String
     , geometryShader    :: Maybe String
     , fragmentShader    :: String
@@ -327,8 +329,9 @@ type Slot =       -- input, primitive type
     , slotPrograms  :: [ProgramName]
     }
 
+type TargetItem = {semantic::ImageSemantic,ref::Maybe ImageRef}
 type RenderTarget =
-    { renderTargets :: [{semantic::ImageSemantic,ref::Maybe ImageRef}] -- render texture or default framebuffer (semantic, render texture for the program output)
+    { renderTargets :: [TargetItem] -- render texture or default framebuffer (semantic, render texture for the program output)
     }
 
 type Pipeline =
