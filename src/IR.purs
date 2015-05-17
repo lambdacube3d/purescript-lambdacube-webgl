@@ -150,13 +150,13 @@ data BlendEquation          = FuncAdd | FuncSubtract | FuncReverseSubtract | Min
 data BlendingFactor         = Zero | One | SrcColor | OneMinusSrcColor | DstColor | OneMinusDstColor | SrcAlpha | OneMinusSrcAlpha | DstAlpha | OneMinusDstAlpha | ConstantColor | OneMinusConstantColor | ConstantAlpha | OneMinusConstantAlpha | SrcAlphaSaturate
 data LogicOperation         = Clear | And | AndReverse | Copy | AndInverted | Noop | Xor | Or | Nor | Equiv | Invert | OrReverse | CopyInverted | OrInverted | Nand | Set
 
-type StencilOps =
+data StencilOps = StencilOps
     { frontStencilOp    :: StencilOperation -- ^ Used for front faced triangles and other primitives.
     , backStencilOp     :: StencilOperation -- ^ Used for back faced triangles.
     }
 
 data StencilTests = StencilTests StencilTest StencilTest
-type StencilTest =
+data StencilTest = StencilTest
     { stencilComparision    :: ComparisonFunction   -- ^ The function used to compare the @stencilReference@ and the stencil buffers value with.
     , stencilReference      :: Int32                -- ^ The value to compare with the stencil buffer's value.
     , stencilMask           :: Word32               -- ^ A bit mask with ones in each position that should be compared and written to the stencil buffer.
@@ -192,7 +192,7 @@ data OutputPrimitive
 
 data ColorArity = Red | RG | RGB | RGBA
 
-type BlendingFactorPair = {src :: BlendingFactor, dst :: BlendingFactor}
+data BlendingFactorPair = BlendingFactorPair {src :: BlendingFactor, dst :: BlendingFactor}
 data Blending
     = NoBlending
     | BlendLogicOp  LogicOperation
@@ -210,7 +210,7 @@ data FragmentOperation
     | StencilOp     StencilTests StencilOps StencilOps
     | ColorOp       Blending Value
 
-type AccumulationContext =
+data AccumulationContext = AccumulationContext
     { accViewportName   :: Maybe String
     , accOperations     :: [FragmentOperation]
     }
@@ -273,7 +273,7 @@ data ImageSemantic
     | Stencil
     | Color
 
-type ClearImage = {semantic :: ImageSemantic, value :: Value}
+data ClearImage = ClearImage {semantic :: ImageSemantic, value :: Value}
 data Command
     = SetRasterContext          RasterContext
     | SetAccumulationContext    AccumulationContext
@@ -288,7 +288,7 @@ data Command
     | SaveImage                 FrameBufferComponent ImageRef                            -- from framebuffer component to texture (image)
     | LoadImage                 ImageRef FrameBufferComponent                            -- from texture (image) to framebuffer component
 
-type TextureDescriptor =   -- texture size, type, array, mipmap
+data TextureDescriptor = TextureDescriptor  -- texture size, type, array, mipmap
     { textureType       :: TextureType
     , textureSize       :: Value
     , textureSemantic   :: ImageSemantic
@@ -297,7 +297,7 @@ type TextureDescriptor =   -- texture size, type, array, mipmap
     , textureMaxLevel   :: Int
     }
 
-type SamplerDescriptor =
+data SamplerDescriptor = SamplerDescriptor
     { samplerWrapS          :: EdgeMode
     , samplerWrapT          :: Maybe EdgeMode
     , samplerWrapR          :: Maybe EdgeMode
@@ -310,8 +310,8 @@ type SamplerDescriptor =
     , samplerCompareFunc    :: Maybe ComparisonFunction
     }
 
-type Parameter = {name::String,ty::InputType}
-type Program =   -- AST, input
+data Parameter = Parameter {name::String,ty::InputType}
+data Program = Program  -- AST, input
     { programUniforms   :: StrMap InputType    -- uniform input (value based uniforms only / no textures)
     , programStreams    :: StrMap Parameter  -- vertex shader input attribute name -> (slot attribute name, attribute type)
     , programInTextures :: StrMap InputType               -- all textures (uniform textures and render textures) referenced by the program
@@ -321,7 +321,7 @@ type Program =   -- AST, input
     , fragmentShader    :: String
     }
 
-type Slot =       -- input, primitive type
+data Slot = Slot      -- input, primitive type
     { slotName      :: String
     , slotUniforms  :: StrMap InputType
     , slotStreams   :: StrMap InputType
@@ -329,12 +329,12 @@ type Slot =       -- input, primitive type
     , slotPrograms  :: [ProgramName]
     }
 
-type TargetItem = {semantic::ImageSemantic,ref::Maybe ImageRef}
-type RenderTarget =
+data TargetItem = TargetItem {semantic::ImageSemantic,ref::Maybe ImageRef}
+data RenderTarget = RenderTarget
     { renderTargets :: [TargetItem] -- render texture or default framebuffer (semantic, render texture for the program output)
     }
 
-type Pipeline =
+data Pipeline = Pipeline
     { textures      :: [TextureDescriptor]
     , samplers      :: [SamplerDescriptor]
     , targets       :: [RenderTarget]

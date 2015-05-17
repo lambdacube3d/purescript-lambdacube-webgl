@@ -20,11 +20,11 @@ import Util
 
 -- API
 schemaFromPipeline :: IR.Pipeline -> GFX PipelineSchema
-schemaFromPipeline ppl = do
-  sl <- for ppl.slots $ \s -> do
+schemaFromPipeline (IR.Pipeline ppl) = do
+  sl <- for ppl.slots $ \(IR.Slot s) -> do
     a <- traverse toStreamType s.slotStreams
     return $ Tuple s.slotName {primitive: s.slotPrimitive, attributes: a}
-  let ul = map (\s -> s.slotUniforms) ppl.slots
+  let ul = map (\(Slot s) -> s.slotUniforms) ppl.slots
   return $
     { slots: StrMap.fromList sl
     , uniforms: foldl StrMap.union (StrMap.empty :: StrMap.StrMap InputType) ul

@@ -96,7 +96,7 @@ setupRasterContext = cvt
         -- not presented: setProvokingVertex pv
 
 setupAccumulationContext :: AccumulationContext -> GFX Unit
-setupAccumulationContext {accViewportName = n, accOperations = ops} = cvt ops
+setupAccumulationContext (AccumulationContext {accViewportName = n, accOperations = ops}) = cvt ops
   where
     cvt :: [FragmentOperation] -> GFX Unit
     cvt (StencilOp a b c : DepthOp f m : xs) = do
@@ -141,9 +141,11 @@ setupAccumulationContext {accViewportName = n, accOperations = ops} = cvt ops
                 --glEnablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
                 GL.enable_ GL._BLEND -- workaround
                 GL.blendEquationSeparate_ (blendEquationToGLType eq.colorEq) (blendEquationToGLType eq.alphaEq)
-                GL.blendFuncSeparate_ (blendingFactorToGLType fac.colorF.src) (blendingFactorToGLType fac.colorF.dst)
-                                    (blendingFactorToGLType fac.alphaF.src) (blendingFactorToGLType fac.alphaF.dst)
                 GL.blendColor_ r g b a
+                BlendingFactorPair colorF <- pure fac.colorF
+                BlendingFactorPair alphaF <- pure fac.alphaF
+                GL.blendFuncSeparate_ (blendingFactorToGLType colorF.src) (blendingFactorToGLType colorF.dst)
+                                      (blendingFactorToGLType alphaF.src) (blendingFactorToGLType alphaF.dst)
         case m of
           VBool r           -> GL.colorMask_ r true true true
           VV2B (V2 r g)     -> GL.colorMask_ r g true true
@@ -154,9 +156,9 @@ setupAccumulationContext {accViewportName = n, accOperations = ops} = cvt ops
     cvtC _ [] = return unit
 
 
-clearRenderTarget :: [{semantic :: ImageSemantic, value :: Value}] -> GFX Unit
+clearRenderTarget :: [ClearImage] -> GFX Unit
 clearRenderTarget values = do
-    let setClearValue arg@{mask:m,index:i} val = case val of
+    let setClearValue {mask:m,index:i} (ClearImage val) = case val of
             {semantic = Depth, value = VFloat v} -> do
                 GL.depthMask_ true
                 GL.clearDepth_ v
@@ -178,7 +180,7 @@ clearRenderTarget values = do
     GL.clear_ m.mask
 
 compileProgram :: StrMap.StrMap InputType -> Program -> GFX GLProgram
-compileProgram uniTrie p = do
+compileProgram uniTrie (Program p) = do
     po <- GL.createProgram_
     let createAndAttach src t = do
           o <- GL.createShader_ t
@@ -207,7 +209,7 @@ compileProgram uniTrie p = do
       loc <- GL.getUniformLocation_ po uniName
       return $ Tuple uniName loc)
 
-    streamLocation <- StrMap.fromList <$> for (StrMap.toList p.programStreams) (\(Tuple streamName s) -> do
+    streamLocation <- StrMap.fromList <$> for (StrMap.toList p.programStreams) (\(Tuple streamName (Parameter s)) -> do
       loc <- GL.getAttribLocation_ po streamName
       trace $ "attrib location " ++ streamName ++" " ++ show loc
       return $ Tuple streamName {location: loc, slotAttribute: s.name})
@@ -215,7 +217,7 @@ compileProgram uniTrie p = do
     return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputStreams: streamLocation}
 
 allocPipeline :: Pipeline -> GFX WebGLPipeline
-allocPipeline p = do
+allocPipeline (Pipeline p) = do
   {-  support:
         programs
         commands
@@ -238,8 +240,8 @@ allocPipeline p = do
     , programs: prgs
     , commands: p.commands
     , input: input
-    , slotPrograms: map (\a -> a.slotPrograms) p.slots
-    , slotNames: map (\a -> a.slotName) p.slots
+    , slotPrograms: map (\(Slot a) -> a.slotPrograms) p.slots
+    , slotNames: map (\(Slot a) -> a.slotName) p.slots
     , curProgram: curProg
     }
 
