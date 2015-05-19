@@ -250,27 +250,27 @@ renderPipeline p = do
   writeRef p.curProgram Nothing
   for_ p.commands $ \cmd -> case cmd of
       SetRasterContext rCtx -> do
-        trace "SetRasterContext"
+        --trace "SetRasterContext"
         setupRasterContext rCtx
       SetAccumulationContext aCtx -> do
-        trace "SetAccumulationContext"
+        --trace "SetAccumulationContext"
         setupAccumulationContext aCtx
       ClearRenderTarget t -> do
-        trace "ClearRenderTarget"
+        --trace "ClearRenderTarget"
         clearRenderTarget t
       SetProgram i -> do
-        trace $ "SetProgram " ++ show i
+        --trace $ "SetProgram " ++ show i
         writeRef p.curProgram (Just i)
         GL.useProgram_ $ (p.programs `unsafeIndex` i).program
       RenderSlot slotIdx -> do
-        trace $ "RenderSlot " ++ show slotIdx
+        --trace $ "RenderSlot " ++ show slotIdx
         readRef p.curProgram >>= \cp -> case cp of
           Nothing -> throwException $ error "invalid pipeline, no active program"
           Just progIdx -> readRef p.input >>= \input -> case input of
               Nothing -> return unit
               Just (InputConnection ic) -> do
                 s <- readRef (ic.input.slotVector `unsafeIndex` (ic.slotMapPipelineToInput `unsafeIndex` slotIdx))
-                trace $ "#" ++ show (length s.sortedObjects)
+                --trace $ "#" ++ show (length s.sortedObjects)
                 for_ s.sortedObjects $ \(Tuple _ obj) -> do
                   enabled <- readRef obj.enabled
                   when enabled $ do
@@ -282,23 +282,23 @@ renderSlot :: [GLObjectCommand] -> GFX Unit
 renderSlot cmds = do
   for_ cmds $ \cmd -> case cmd of
     GLSetVertexAttribArray idx buf size typ ptr -> do
-      trace $ "GLSetVertexAttribArray " ++ show [idx,size,ptr]
+      --trace $ "GLSetVertexAttribArray " ++ show [idx,size,ptr]
       GL.bindBuffer_ GL._ARRAY_BUFFER buf
       GL.enableVertexAttribArray_ idx
       GL.vertexAttribPointer_ idx size typ false 0 ptr
     GLDrawArrays mode first count -> do
-      trace $ "GLDrawArrays " ++ show [first,count]
+      --trace $ "GLDrawArrays " ++ show [first,count]
       GL.drawArrays_ mode first count
     GLDrawElements mode count typ buf indicesPtr -> do
-      trace "GLDrawElements"
+      --trace "GLDrawElements"
       GL.bindBuffer_ GL._ELEMENT_ARRAY_BUFFER buf
       GL.drawElements_ mode count typ indicesPtr
     GLSetVertexAttrib idx val -> do
-      trace $ "GLSetVertexAttrib " ++ show idx
+      --trace $ "GLSetVertexAttrib " ++ show idx
       GL.disableVertexAttribArray_ idx
       setVertexAttrib idx val
     GLSetUniform idx uni -> do
-      trace "GLSetUniform"
+      --trace "GLSetUniform"
       setUniform idx uni
 {-
         GLBindTexture txTarget tuRef (GLUniform _ ref)  -> do
