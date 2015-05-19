@@ -13,6 +13,15 @@ import Type
 import Data
 import Input
 
+data AttributeType
+    = AT_Float
+    | AT_V2F
+    | AT_V3F
+    | AT_V4F
+    | AT_M22F
+    | AT_M33F
+    | AT_M44F
+
 data MeshAttribute
     = A_Float   [Float]
     | A_V2F     [V2F]
@@ -21,6 +30,7 @@ data MeshAttribute
     | A_M22F    [M22F]
     | A_M33F    [M33F]
     | A_M44F    [M44F]
+    | A_Flat    AttributeType [Float]
 
 data MeshPrimitive
     = P_Points
@@ -71,20 +81,32 @@ compileMesh mesh = case mesh.gpuData of
 
 meshAttrToArray :: MeshAttribute -> LCArray
 meshAttrToArray a = case a of
-  A_Float v -> Array ArrFloat $ toArray v
-  A_V2F   v -> Array ArrFloat $ toArray v
-  A_V3F   v -> Array ArrFloat $ toArray v
-  A_V4F   v -> Array ArrFloat $ toArray v
-  A_M22F  v -> Array ArrFloat $ toArray v
-  A_M33F  v -> Array ArrFloat $ toArray v
-  A_M44F  v -> Array ArrFloat $ toArray v
+  A_Float v   -> Array ArrFloat $ toArray v
+  A_V2F   v   -> Array ArrFloat $ toArray v
+  A_V3F   v   -> Array ArrFloat $ toArray v
+  A_V4F   v   -> Array ArrFloat $ toArray v
+  A_M22F  v   -> Array ArrFloat $ toArray v
+  A_M33F  v   -> Array ArrFloat $ toArray v
+  A_M44F  v   -> Array ArrFloat $ toArray v
+  A_Flat _ v  -> Array ArrFloat v
 
 meshAttrToStream :: Buffer -> Int -> MeshAttribute -> Stream Buffer
 meshAttrToStream b i a = Stream $ case a of
-  A_Float v -> {sType: TFloat, buffer: b, arrIdx: i , start: 0, length: length v}
-  A_V2F   v -> {sType: TV2F  , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_V3F   v -> {sType: TV3F  , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_V4F   v -> {sType: TV4F  , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_M22F  v -> {sType: TM22F , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_M33F  v -> {sType: TM33F , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_M44F  v -> {sType: TM44F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_Float v   -> {sType: TFloat, buffer: b, arrIdx: i , start: 0, length: length v}
+  A_V2F   v   -> {sType: TV2F  , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_V3F   v   -> {sType: TV3F  , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_V4F   v   -> {sType: TV4F  , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_M22F  v   -> {sType: TM22F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_M33F  v   -> {sType: TM33F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_M44F  v   -> {sType: TM44F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_Flat t v  -> let
+      tn = case t of
+        AT_Float  -> Tuple TFloat 1
+        AT_V2F    -> Tuple TV2F   2
+        AT_V3F    -> Tuple TV3F   3
+        AT_V4F    -> Tuple TV4F   4
+        AT_M22F   -> Tuple TM22F  4
+        AT_M33F   -> Tuple TM33F  9
+        AT_M44F   -> Tuple TM44F  16
+    in case tn of
+      Tuple st n -> {sType: st , buffer: b, arrIdx: i , start: 0, length: length v / n}
