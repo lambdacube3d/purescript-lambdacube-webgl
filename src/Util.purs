@@ -31,8 +31,8 @@ blendEquationToGLType a = case a of
     FuncAdd             -> GL._FUNC_ADD
     FuncReverseSubtract -> GL._FUNC_REVERSE_SUBTRACT
     FuncSubtract        -> GL._FUNC_SUBTRACT
-    -- not presented: Max                 -> GL._MAX
-    -- not presented: Min                 -> GL._MIN
+    Max                 -> GL._FUNC_ADD -- _MAX -- not presented
+    Min                 -> GL._FUNC_ADD -- _MIN-- not presented
 
 blendingFactorToGLType :: BlendingFactor -> GL.GLenum
 blendingFactorToGLType a = case a of
