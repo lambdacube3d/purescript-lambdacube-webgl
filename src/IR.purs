@@ -215,11 +215,6 @@ data AccumulationContext = AccumulationContext
     , accOperations     :: [FragmentOperation]
     }
 
-data Image
-    = DepthImage    Int Float
-    | StencilImage  Int Int32
-    | ColorImage    Int Value
-
 data TextureDataType
     = FloatT        ColorArity
     | IntT          ColorArity
