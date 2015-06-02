@@ -195,6 +195,7 @@ data InputConnection = InputConnection
 
 type WebGLPipeline =
   { targets       :: [RenderTarget]
+  , textures      :: [GLTexture]
   , programs      :: [GLProgram]
   , commands      :: [Command]
   , input         :: RefVal (Maybe InputConnection)
@@ -202,6 +203,11 @@ type WebGLPipeline =
   , slotPrograms  :: [[ProgramName]] -- program list for every slot (programs depend on a slot)
   , curProgram    :: RefVal (Maybe Int)
   }
+
+type GLTexture =
+    { textureObject   :: GL.WebGLTexture
+    , textureTarget   :: GL.GLenum
+    }
 
 type GLProgram =
   { program       :: GL.WebGLProgram

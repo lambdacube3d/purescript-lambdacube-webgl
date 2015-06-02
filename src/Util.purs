@@ -8,9 +8,12 @@ import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Ref
 import Control.Monad.Eff.WebGL
 import Data.Tuple
+import Data.Maybe
 import Data.Array
 import qualified Data.ArrayBuffer.Types as AB
 import qualified Data.TypedArray as TA
+import Math
+import Data.Foldable
 
 import IR
 import Type
@@ -262,3 +265,103 @@ foreign import bufferSubDataArrayView
      {return function()
       {gl.bufferSubData(target,offset,data);};};};};"""
     :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayView -> GFX Unit
+
+compileTexture :: TextureDescriptor -> GFX GLTexture
+compileTexture (TextureDescriptor txD) = do
+  to <- (GL.createTexture_)
+  let div a b = floor $ a / b
+      mipSize 0 x = [x]
+      mipSize n x = x : mipSize (n-1) (x `div` 2)
+      mipS = mipSize (txD.textureMaxLevel - txD.textureBaseLevel)
+      levels = txD.textureBaseLevel..txD.textureMaxLevel
+      txSetup txTarget dTy = do
+          internalFormat  <- textureDataTypeToGLType txD.textureSemantic dTy
+          dataFormat      <- textureDataTypeToGLArityType txD.textureSemantic dTy
+          GL.bindTexture_ txTarget to
+          setTextureSamplerParameters txTarget txD.textureSampler
+          return $ Tuple internalFormat dataFormat
+  let act = case txD.textureType of
+        Texture2D dTy 1 -> do
+            let txTarget = GL._TEXTURE_2D
+            VV2U (V2 txW txH) <- return txD.textureSize
+            Tuple internalFormat dataFormat <- txSetup txTarget dTy
+            for_ (zip levels (zip (mipS txW) (mipS txH))) $ \(Tuple l (Tuple w h)) -> do
+              texImage2DNull_ txTarget l internalFormat w h 0 dataFormat GL._UNSIGNED_BYTE
+              return unit
+            return $
+              { textureObject: to
+              , textureTarget: GL._TEXTURE_2D --target
+              }
+        _ -> throwException $ error "Unsupported texture type!"
+  act
+
+textureDataTypeToGLType :: ImageSemantic -> TextureDataType -> GFX GL.GLenum
+textureDataTypeToGLType Color a = case a of
+    FloatT RGBA -> return GL._RGBA
+    IntT   RGBA -> return GL._RGBA
+    WordT  RGBA -> return GL._RGBA
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+textureDataTypeToGLType Depth a = case a of
+    FloatT Red  -> return GL._DEPTH_COMPONENT
+    WordT  Red  -> return GL._DEPTH_COMPONENT
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+textureDataTypeToGLType Stencil a = case a of
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+
+textureDataTypeToGLArityType :: ImageSemantic -> TextureDataType -> GFX GL.GLenum
+textureDataTypeToGLArityType Color a = case a of
+    FloatT RGBA -> return GL._RGBA
+    IntT   RGBA -> return GL._RGBA
+    WordT  RGBA -> return GL._RGBA
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+textureDataTypeToGLArityType Depth a = case a of
+    FloatT Red  -> return GL._DEPTH_COMPONENT
+    WordT  Red  -> return GL._DEPTH_COMPONENT
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+textureDataTypeToGLArityType Stencil a = case a of
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+
+foreign import texImage2DNull_
+  """function texImage2DNull_(target)
+   {return function(level)
+    {return function(internalformat)
+     {return function(width)
+      {return function(height)
+       {return function(border)
+        {return function(format)
+         {return function(type)
+           {return function()
+            {gl.texImage2D(target,level,internalformat,width,height,border,format,type,null);};};};};};};};};};"""
+    :: GL.GLenum->
+       GL.GLint->
+       GL.GLenum->
+       GL.GLsizei->
+       GL.GLsizei->
+       GL.GLint->
+       GL.GLenum->
+       GL.GLenum->
+       GFX Unit
+
+setTextureSamplerParameters :: GL.GLenum -> SamplerDescriptor -> GFX Unit
+setTextureSamplerParameters t (SamplerDescriptor s) = do
+    GL.texParameteri_ t GL._TEXTURE_WRAP_S $ edgeModeToGLType s.samplerWrapS
+    case s.samplerWrapT of
+        Nothing -> return unit
+        Just a  -> GL.texParameteri_ t GL._TEXTURE_WRAP_T $ edgeModeToGLType a
+    GL.texParameteri_ t GL._TEXTURE_MIN_FILTER $ filterToGLType s.samplerMinFilter
+    GL.texParameteri_ t GL._TEXTURE_MAG_FILTER $ filterToGLType s.samplerMagFilter
+
+filterToGLType :: Filter -> GL.GLenum
+filterToGLType a = case a of
+    Nearest                 -> GL._NEAREST
+    Linear                  -> GL._LINEAR
+    NearestMipmapNearest    -> GL._NEAREST_MIPMAP_NEAREST
+    NearestMipmapLinear     -> GL._NEAREST_MIPMAP_LINEAR
+    LinearMipmapNearest     -> GL._LINEAR_MIPMAP_NEAREST
+    LinearMipmapLinear      -> GL._LINEAR_MIPMAP_LINEAR
+
+edgeModeToGLType :: EdgeMode -> GL.GLenum
+edgeModeToGLType a = case a of
+    Repeat          -> GL._REPEAT
+    MirroredRepeat  -> GL._MIRRORED_REPEAT
+    ClampToEdge     -> GL._CLAMP_TO_EDGE

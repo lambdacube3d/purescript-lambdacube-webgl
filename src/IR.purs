@@ -191,6 +191,11 @@ data OutputPrimitive
     | PointsOutput
 
 data ColorArity = Red | RG | RGB | RGBA
+instance showColorArity :: Show (ColorArity) where
+  show Red  = "Red"
+  show RG   = "RG"
+  show RGB  = "RGB"
+  show RGBA = "RGBA"
 
 data BlendingFactorPair = BlendingFactorPair {src :: BlendingFactor, dst :: BlendingFactor}
 data Blending
@@ -220,6 +225,12 @@ data TextureDataType
     | IntT          ColorArity
     | WordT         ColorArity
     | ShadowT
+
+instance showTextureDataType :: Show (TextureDataType) where
+  show (FloatT a) = "FloatT " ++ show a
+  show (IntT a)   = "IntT " ++ show a
+  show (WordT a)  = "WordT " ++ show a
+  show ShadowT    = "ShadowT"
 
 data TextureType
     = Texture1D     TextureDataType Int

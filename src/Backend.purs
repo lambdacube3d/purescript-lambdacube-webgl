@@ -216,6 +216,8 @@ compileProgram uniTrie (Program p) = do
 
     return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputStreams: streamLocation}
 
+--compileRenderTarget :: [TextureDescriptor] -> Vector GLTexture -> RenderTarget -> IO GLRenderTarget
+
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
   {-  support:
@@ -227,16 +229,18 @@ allocPipeline (Pipeline p) = do
   -}
   {-
     - samplers -- not presented
-    - textures
-    - targets (frabebuffer objects)
-    - programs
-    - commands
+    TODO - textures
+    TODO - targets (frabebuffer objects)
+    DONE - programs
+    DONE - commands
   -}
+  texs <- traverse compileTexture p.textures
   prgs <- traverse (compileProgram StrMap.empty) p.programs
   input <- newRef Nothing
   curProg <- newRef Nothing
   return
     { targets: p.targets
+    , textures: texs
     , programs: prgs
     , commands: p.commands
     , input: input
@@ -245,10 +249,19 @@ allocPipeline (Pipeline p) = do
     , curProgram: curProg
     }
 
+{-
+  new commands:
+    SetRenderTarget
+    SetTexture
+    SetSamplerUniform
+-}
 renderPipeline :: WebGLPipeline -> GFX Unit
 renderPipeline p = do
   writeRef p.curProgram Nothing
   for_ p.commands $ \cmd -> case cmd of
+      -- TODO: SetRenderTarget
+      -- TODO: SetSamplerUniform
+      -- TODO: SetTexture
       SetRasterContext rCtx -> do
         --trace "SetRasterContext"
         setupRasterContext rCtx
