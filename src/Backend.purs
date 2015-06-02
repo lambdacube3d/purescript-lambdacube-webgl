@@ -16,6 +16,7 @@ import qualified Data.StrMap as StrMap
 import qualified Data.Map as Map
 import Data.Tuple
 import Data.Maybe
+import Data.Maybe.Unsafe
 import Data.Array
 
 import Type
@@ -216,7 +217,62 @@ compileProgram uniTrie (Program p) = do
 
     return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputStreams: streamLocation}
 
---compileRenderTarget :: [TextureDescriptor] -> Vector GLTexture -> RenderTarget -> IO GLRenderTarget
+foreign import nullWebGLFramebuffer "var nullWebGLFramebuffer = 0" :: GL.WebGLFramebuffer
+
+compileRenderTarget :: [TextureDescriptor] -> [GLTexture] -> RenderTarget -> GFX GLRenderTarget
+compileRenderTarget texs glTexs (RenderTarget rt) = do
+  let targets = rt.renderTargets
+      isFB (Framebuffer _)    = true
+      isFB _                  = false
+      images = map (\(TargetItem a) -> fromJust a.ref) $ filter (\(TargetItem a) -> isJust a.ref) targets
+      act1 = case all isFB images of
+          true -> do
+              let isColor Color = true
+                  isColor _ = false
+                  cvt (TargetItem a) = case a.ref of
+                      Nothing                     -> return GL._NONE
+                      Just (Framebuffer Color)    -> return GL._BACK
+                      _                           -> throwException $ error "internal error (compileRenderTarget)!"
+              bufs <- traverse cvt $ filter (\(TargetItem a) -> isColor a.semantic) targets
+              return $
+                  { framebufferObject: nullWebGLFramebuffer
+                  , framebufferDrawbuffers: Just bufs
+                  }
+          false -> do
+              when (any isFB images) $ throwException $ error "internal error (compileRenderTarget)!"
+              fbo <- GL.createFramebuffer_
+              GL.bindFramebuffer_ GL._FRAMEBUFFER fbo
+              let attach attachment (TextureImage texIdx level Nothing) = do
+                      let glTex = glTexs `unsafeIndex` texIdx
+                          tex = texs `unsafeIndex` texIdx
+                          txLevel = level
+                          txTarget = glTex.textureTarget
+                          txObj = glTex.textureObject
+                          attach2D    = GL.framebufferTexture2D_ GL._FRAMEBUFFER attachment txTarget txObj txLevel
+                          act0 = case tex of
+                            TextureDescriptor t -> case t.textureType of
+                              Texture2D     _ 1 -> attach2D
+                              _ -> throwException $ error "invalid texture format!"
+                      act0
+                  attach _ _ = throwException $ error "invalid texture format!"
+                  go a (TargetItem {semantic:Stencil, ref:Just img}) = do
+                      throwException $ error "Stencil support is not implemented yet!"
+                      return a
+                  go a (TargetItem {semantic: Depth,ref: Just img}) = do
+                      attach GL._DEPTH_ATTACHMENT img
+                      return a
+                  go (Tuple bufs colorIdx) (TargetItem {semantic: Color,ref: Just img}) = do
+                      let attachment = GL._COLOR_ATTACHMENT0
+                      attach attachment img
+                      return (Tuple (attachment : bufs) (colorIdx + 1))
+                  go (Tuple bufs colorIdx) (TargetItem {semantic: Color,ref: Nothing}) = return (Tuple (GL._NONE : bufs) (colorIdx + 1))
+                  go a _ = return a
+              (Tuple bufs _) <- foldM go (Tuple [] 0) targets
+              return $
+                  { framebufferObject: fbo
+                  , framebufferDrawbuffers: Nothing
+                  }
+  act1
 
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
@@ -229,17 +285,18 @@ allocPipeline (Pipeline p) = do
   -}
   {-
     - samplers -- not presented
-    TODO - textures
-    TODO - targets (frabebuffer objects)
+    DONE - textures
+    DONE - targets (frabebuffer objects)
     DONE - programs
     DONE - commands
   -}
   texs <- traverse compileTexture p.textures
+  trgs <- traverse (compileRenderTarget p.textures texs) p.targets
   prgs <- traverse (compileProgram StrMap.empty) p.programs
   input <- newRef Nothing
   curProg <- newRef Nothing
   return
-    { targets: p.targets
+    { targets: trgs
     , textures: texs
     , programs: prgs
     , commands: p.commands
@@ -259,9 +316,40 @@ renderPipeline :: WebGLPipeline -> GFX Unit
 renderPipeline p = do
   writeRef p.curProgram Nothing
   for_ p.commands $ \cmd -> case cmd of
-      -- TODO: SetRenderTarget
+      SetRenderTarget t -> return unit
+{-
+    SetRenderTarget rt          -> let GLRenderTarget fbo bufs = targets ! rt in return $ GLSetRenderTarget fbo bufs
+            GLSetRenderTarget rt bufs       -> do
+                                                -- set target viewport
+                                               --when (rt == 0) $ do -- screen out
+                                                ic' <- readIORef $ glInput glp
+                                                case ic' of
+                                                    Nothing -> return ()
+                                                    Just ic -> do
+                                                                let input = icInput ic
+                                                                (w,h) <- readIORef $ screenSize input
+                                                                glViewport 0 0 (fromIntegral w) (fromIntegral h)
+                                                -- TODO: set FBO target viewport
+                                                glBindFramebuffer gl_DRAW_FRAMEBUFFER rt
+                                                case bufs of
+                                                    Nothing -> return ()
+                                                    Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
+-}
       -- TODO: SetSamplerUniform
-      -- TODO: SetTexture
+      --SetSamplerUniform i tu ref    -> glUniform1i i tu >> writeIORef ref tu
+{-
+      SetSamplerUniform n tu -> do
+        p <- readRef p.curProgram
+        case StrMap.lookup n (programs `unsafeIndex` p).inputTextures of
+          Nothing -> throwException $ error "internal error (SetSamplerUniform)!"
+          Just i  -> case StrMap.lookup n texUnitMap of
+            Nothing -> throwException $ error "internal error (SetSamplerUniform - IORef)!"
+            Just r  -> return $ GLSetSamplerUniform i (fromIntegral tu) r
+-}
+      SetTexture tu i -> do
+        GL.activeTexture_ (GL._TEXTURE0 + tu)
+        let tx = p.textures `unsafeIndex` i
+        GL.bindTexture_ tx.textureTarget tx.textureObject
       SetRasterContext rCtx -> do
         --trace "SetRasterContext"
         setupRasterContext rCtx

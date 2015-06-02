@@ -194,7 +194,7 @@ data InputConnection = InputConnection
   }
 
 type WebGLPipeline =
-  { targets       :: [RenderTarget]
+  { targets       :: [GLRenderTarget]
   , textures      :: [GLTexture]
   , programs      :: [GLProgram]
   , commands      :: [Command]
@@ -207,6 +207,11 @@ type WebGLPipeline =
 type GLTexture =
     { textureObject   :: GL.WebGLTexture
     , textureTarget   :: GL.GLenum
+    }
+
+type GLRenderTarget =
+    { framebufferObject         :: GL.WebGLFramebuffer
+    , framebufferDrawbuffers    :: Maybe [GL.GLenum]
     }
 
 type GLProgram =
