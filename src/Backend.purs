@@ -221,7 +221,7 @@ compileProgram uniTrie (Program p) = do
 
     return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputSamplers:samplerLocation, inputStreams: streamLocation}
 
-foreign import nullWebGLFramebuffer "var nullWebGLFramebuffer = 0" :: GL.WebGLFramebuffer
+foreign import nullWebGLFramebuffer "var nullWebGLFramebuffer = null" :: GL.WebGLFramebuffer
 
 compileRenderTarget :: [TextureDescriptor] -> [GLTexture] -> RenderTarget -> GFX GLRenderTarget
 compileRenderTarget texs glTexs (RenderTarget rt) = do
