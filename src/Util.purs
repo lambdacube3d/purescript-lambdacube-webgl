@@ -286,7 +286,7 @@ compileTexture (TextureDescriptor txD) = do
             VV2U (V2 txW txH) <- return txD.textureSize
             Tuple internalFormat dataFormat <- txSetup txTarget dTy
             for_ (zip levels (zip (mipS txW) (mipS txH))) $ \(Tuple l (Tuple w h)) -> do
-              texImage2DNull_ txTarget l internalFormat w h 0 dataFormat GL._UNSIGNED_BYTE
+              texImage2DNull_ txTarget l internalFormat w h 0 dataFormat (if dataFormat == GL._DEPTH_COMPONENT then GL._UNSIGNED_SHORT else GL._UNSIGNED_BYTE)
               return unit
             return $
               { textureObject: to
