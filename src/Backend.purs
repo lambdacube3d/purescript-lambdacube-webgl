@@ -210,12 +210,16 @@ compileProgram uniTrie (Program p) = do
       loc <- GL.getUniformLocation_ po uniName
       return $ Tuple uniName loc)
 
+    samplerLocation <- StrMap.fromList <$> for (StrMap.toList p.programInTextures) (\(Tuple uniName uniType) -> do
+      loc <- GL.getUniformLocation_ po uniName
+      return $ Tuple uniName loc)
+
     streamLocation <- StrMap.fromList <$> for (StrMap.toList p.programStreams) (\(Tuple streamName (Parameter s)) -> do
       loc <- GL.getAttribLocation_ po streamName
       trace $ "attrib location " ++ streamName ++" " ++ show loc
       return $ Tuple streamName {location: loc, slotAttribute: s.name})
 
-    return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputStreams: streamLocation}
+    return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputSamplers:samplerLocation, inputStreams: streamLocation}
 
 foreign import nullWebGLFramebuffer "var nullWebGLFramebuffer = 0" :: GL.WebGLFramebuffer
 
@@ -276,20 +280,6 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
 
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
-  {-  support:
-        programs
-        commands
-      not supported yet:
-        textures
-        framebuffer object targets
-  -}
-  {-
-    - samplers -- not presented
-    DONE - textures
-    DONE - targets (frabebuffer objects)
-    DONE - programs
-    DONE - commands
-  -}
   texs <- traverse compileTexture p.textures
   trgs <- traverse (compileRenderTarget p.textures texs) p.targets
   prgs <- traverse (compileProgram StrMap.empty) p.programs
@@ -306,46 +296,32 @@ allocPipeline (Pipeline p) = do
     , curProgram: curProg
     }
 
-{-
-  new commands:
-    SetRenderTarget
-    SetTexture
-    SetSamplerUniform
--}
 renderPipeline :: WebGLPipeline -> GFX Unit
 renderPipeline p = do
   writeRef p.curProgram Nothing
   for_ p.commands $ \cmd -> case cmd of
-      SetRenderTarget t -> return unit
-{-
-    SetRenderTarget rt          -> let GLRenderTarget fbo bufs = targets ! rt in return $ GLSetRenderTarget fbo bufs
-            GLSetRenderTarget rt bufs       -> do
-                                                -- set target viewport
-                                               --when (rt == 0) $ do -- screen out
-                                                ic' <- readIORef $ glInput glp
-                                                case ic' of
-                                                    Nothing -> return ()
-                                                    Just ic -> do
-                                                                let input = icInput ic
-                                                                (w,h) <- readIORef $ screenSize input
-                                                                glViewport 0 0 (fromIntegral w) (fromIntegral h)
-                                                -- TODO: set FBO target viewport
-                                                glBindFramebuffer gl_DRAW_FRAMEBUFFER rt
-                                                case bufs of
-                                                    Nothing -> return ()
-                                                    Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
--}
-      -- TODO: SetSamplerUniform
-      --SetSamplerUniform i tu ref    -> glUniform1i i tu >> writeIORef ref tu
-{-
+      SetRenderTarget i -> do
+        let rt = p.targets `unsafeIndex` i
+        ic' <- readRef p.input
+        case ic' of
+            Nothing -> return unit
+            Just (InputConnection ic) -> do
+                        V2 w h <- readRef ic.input.screenSize
+                        GL.viewport_ 0 0 w h
+        -- TODO: set FBO target viewport
+        GL.bindFramebuffer_ GL._FRAMEBUFFER rt.framebufferObject
+        {-
+        case bufs of
+            Nothing -> return unit
+            Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
+        -}
       SetSamplerUniform n tu -> do
-        p <- readRef p.curProgram
-        case StrMap.lookup n (programs `unsafeIndex` p).inputTextures of
-          Nothing -> throwException $ error "internal error (SetSamplerUniform)!"
-          Just i  -> case StrMap.lookup n texUnitMap of
-            Nothing -> throwException $ error "internal error (SetSamplerUniform - IORef)!"
-            Just r  -> return $ GLSetSamplerUniform i (fromIntegral tu) r
--}
+        readRef p.curProgram >>= \cp -> case cp of
+          Nothing -> throwException $ error "invalid pipeline, no active program"
+          Just progIdx -> case StrMap.lookup n (p.programs `unsafeIndex` progIdx).inputSamplers of
+            Nothing -> throwException $ error "internal error (SetSamplerUniform)!"
+            Just i  -> GL.uniform1i_ i tu
+
       SetTexture tu i -> do
         GL.activeTexture_ (GL._TEXTURE0 + tu)
         let tx = p.textures `unsafeIndex` i

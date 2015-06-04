@@ -218,6 +218,7 @@ type GLProgram =
   { program       :: GL.WebGLProgram
   , shaders       :: [GL.WebGLShader]
   , inputUniforms :: StrMap.StrMap GL.WebGLUniformLocation
+  , inputSamplers :: StrMap.StrMap GL.WebGLUniformLocation
   , inputStreams  :: StrMap.StrMap {location :: GL.GLint, slotAttribute :: String}
   }
 
