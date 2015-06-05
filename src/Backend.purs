@@ -281,7 +281,7 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
   -- enable extensions
-  GL.getExtension_ "WEBKIT_WEBGL_depth_texture"
+  GL.getExtension_ "WEBGL_depth_texture"
   texs <- traverse compileTexture p.textures
   trgs <- traverse (compileRenderTarget p.textures texs) p.targets
   prgs <- traverse (compileProgram StrMap.empty) p.programs
