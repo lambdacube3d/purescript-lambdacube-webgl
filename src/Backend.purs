@@ -13,16 +13,19 @@ import Control.Bind
 import Data.Foldable
 import Data.Traversable
 import qualified Data.StrMap as StrMap
+import qualified Data.StrMap.Unsafe as StrMap
 import qualified Data.Map as Map
 import Data.Tuple
 import Data.Maybe
 import Data.Maybe.Unsafe
 import Data.Array
+import Math
 
 import Type
 import IR
 import Util
 import Input
+import Data
 
 setupRasterContext :: RasterContext -> GFX Unit
 setupRasterContext = cvt
@@ -278,6 +281,103 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
                   }
   act1
 
+compileStreamData :: StreamData -> GFX GLStream
+compileStreamData (StreamData s) = do
+  let compileAttr (VFloatArray v) = Array ArrFloat v
+      compileAttr (VIntArray v) = Array ArrInt16 v
+      compileAttr (VWordArray v) = Array ArrWord16 v
+      --TODO: compileAttr (VBoolArray v) = Array ArrWord32 (length v) (withV withArray v)
+  Tuple indexMap arrays <- return $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(StrMap.size s.streamData -1)) $ StrMap.toList s.streamData
+  let getLength n = do
+        l <- case StrMap.lookup n s.streamData of
+            Just (VFloatArray v) -> return $ length v
+            Just (VIntArray v) -> return $ length v
+            Just (VWordArray v) -> return $ length v
+            _ -> throwException $ error "compileStreamData - getLength"
+        c <- case StrMap.lookup n s.streamType of
+            Just Float  -> return 1
+            Just V2F    -> return 2
+            Just V3F    -> return 3
+            Just V4F    -> return 4
+            Just M22F   -> return 4
+            Just M33F   -> return 9
+            Just M44F   -> return 16
+            _ -> throwException $ error "compileStreamData - getLength element count"
+        return $ floor $ l / c
+  buffer <- compileBuffer arrays
+  cmdRef <- newRef []
+  let toStream (Tuple n i) = do
+        t <- toStreamType =<< case StrMap.lookup n s.streamType of
+          Just a -> return  a
+          Nothing -> throwException $ error "compileStreamData - toStream"
+        l <- getLength n
+        return $ Tuple n (Stream
+          { sType:  t
+          , buffer: buffer
+          , arrIdx: i
+          , start:  0
+          , length: l
+          })
+  strms <- traverse toStream indexMap
+  return
+    { commands: cmdRef
+    , primitive: case s.streamPrimitive of
+        Points    -> PointList
+        Lines     -> LineList
+        Triangles -> TriangleList
+    , attributes: StrMap.fromList strms
+    , program: fromJust $ head $ s.streamPrograms
+    }
+
+createStreamCommands :: {-StrMap.StrMap (RefVal GL.GLint)-}{} -> StrMap.StrMap GLUniform -> StrMap.StrMap (Stream Buffer) -> Primitive -> GLProgram -> [GLObjectCommand]
+createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `append` streamCmds `append` [drawCmd]
+  where
+    -- object draw command
+    drawCmd = GLDrawArrays prim 0 count
+      where
+        prim = primitiveToGLType primitive
+        streamLen a = case a of
+          Stream s  -> [s.length]
+          _         -> []
+        count = (concatMap streamLen $ StrMap.values attrs) `unsafeIndex` 0
+
+    -- object uniform commands
+    -- texture slot setup commands
+    streamUniCmds = uniCmds -- `append` texCmds
+      where
+        uniMap  = StrMap.toList prg.inputUniforms
+        uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ topUnis `StrMap.unsafeIndex` n
+        {-
+        texUnis = S.toList $ inputTextureUniforms prg
+        texCmds = [ GLBindTexture (inputTypeToTextureTarget $ uniInputType u) texUnit u
+                  | n <- texUnis
+                  , let u = T.lookupWithDefault (topUni n) n objUnis
+                  , let texUnit = T.lookupWithDefault (error "internal error (createObjectCommands - Texture Unit)") n texUnitMap
+                  ]
+        uniInputType (GLUniform ty _) = ty
+        -}
+
+    -- object attribute stream commands
+    streamCmds = flip map (StrMap.values prg.inputStreams) $ \is -> let
+        s = attrs `StrMap.unsafeIndex` is.slotAttribute
+        i = is.location
+      in case s of
+          Stream s -> let
+              desc = s.buffer.arrays `unsafeIndex` s.arrIdx
+              glType      = arrayTypeToGLType desc.arrType
+              ptr compCnt = desc.arrOffset + s.start * compCnt * sizeOfArrayType desc.arrType
+              setFloatAttrib n = GLSetVertexAttribArray i s.buffer.glBuffer n glType (ptr n)
+            in setFloatAttrib $ case s.sType of
+                TFloat  -> 1
+                TV2F    -> 2
+                TV3F    -> 3
+                TV4F    -> 4
+                TM22F   -> 4
+                TM33F   -> 9
+                TM44F   -> 16
+            -- constant generic attribute
+          constAttr -> GLSetVertexAttrib i constAttr
+
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
   -- enable extensions
@@ -287,6 +387,7 @@ allocPipeline (Pipeline p) = do
   prgs <- traverse (compileProgram StrMap.empty) p.programs
   input <- newRef Nothing
   curProg <- newRef Nothing
+  strms <- traverse compileStreamData p.streams
   return
     { targets: trgs
     , textures: texs
@@ -296,6 +397,7 @@ allocPipeline (Pipeline p) = do
     , slotPrograms: map (\(Slot a) -> a.slotPrograms) p.slots
     , slotNames: map (\(Slot a) -> a.slotName) p.slots
     , curProgram: curProg
+    , streams: strms
     }
 
 renderPipeline :: WebGLPipeline -> GFX Unit
@@ -341,6 +443,8 @@ renderPipeline p = do
         --trace $ "SetProgram " ++ show i
         writeRef p.curProgram (Just i)
         GL.useProgram_ $ (p.programs `unsafeIndex` i).program
+      RenderStream streamIdx -> do
+        renderSlot =<< readRef (p.streams `unsafeIndex` streamIdx).commands
       RenderSlot slotIdx -> do
         --trace $ "RenderSlot " ++ show slotIdx
         readRef p.curProgram >>= \cp -> case cp of
@@ -463,3 +567,7 @@ setPipelineInput p input' = do
                     let updateCmds v prgIdx = updateAt prgIdx (createObjectCommands texUnitMap topUnis obj (p.programs `unsafeIndex` prgIdx)) v
                         cmdV = foldl updateCmds emptyV prgs
                     modifyRef obj.commands $ \v -> updateAt idx cmdV (extend v)
+
+            -- generate stream commands
+            for_ p.streams $ \s -> do
+              writeRef s.commands $ createStreamCommands texUnitMap topUnis s.attributes s.primitive (p.programs `unsafeIndex` s.program)

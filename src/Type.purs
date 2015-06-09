@@ -193,6 +193,13 @@ data InputConnection = InputConnection
   , slotMapInputToPipeline  :: [Maybe SlotName]   -- GLPipelineInput to GLPipeline slot name mapping
   }
 
+type GLStream =
+  { commands    :: RefVal [GLObjectCommand]
+  , primitive   :: Primitive
+  , attributes  :: StrMap.StrMap (Stream Buffer)
+  , program     :: ProgramName
+  }
+
 type WebGLPipeline =
   { targets       :: [GLRenderTarget]
   , textures      :: [GLTexture]
@@ -202,6 +209,7 @@ type WebGLPipeline =
   , slotNames     :: [String]
   , slotPrograms  :: [[ProgramName]] -- program list for every slot (programs depend on a slot)
   , curProgram    :: RefVal (Maybe Int)
+  , streams       :: [GLStream]
   }
 
 type GLTexture =
