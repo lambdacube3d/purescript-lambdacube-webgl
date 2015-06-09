@@ -40,6 +40,11 @@ type V2B = V2 Bool
 type V3B = V3 Bool
 type V4B = V4 Bool
 
+data ArrayValue
+  = VBoolArray  [Bool]
+  | VIntArray   [Int32]
+  | VWordArray  [Word32]
+  | VFloatArray [Float]
 
 -- GPU type value reification, needed for shader codegen
 data Value
@@ -260,6 +265,7 @@ data EdgeMode
     | ClampToEdge
     | ClampToBorder
 
+type StreamName = Int
 type ProgramName = Int
 type TextureName = Int
 type SamplerName = Int
@@ -289,6 +295,7 @@ data Command
     | SetTexture                TextureUnit TextureName             -- binds texture to the specified texture unit
     | SetSampler                TextureUnit (Maybe SamplerName)     -- binds sampler to the specified texture unit
     | RenderSlot                SlotName
+    | RenderStream              StreamName
     | ClearRenderTarget         [ClearImage]
     | GenerateMipMap            TextureUnit
     | SaveImage                 FrameBufferComponent ImageRef                            -- from framebuffer component to texture (image)
@@ -335,6 +342,13 @@ data Slot = Slot      -- input, primitive type
     , slotPrograms  :: [ProgramName]
     }
 
+data StreamData = StreamData
+    { streamData      :: StrMap ArrayValue
+    , streamType      :: StrMap InputType
+    , streamPrimitive :: FetchPrimitive
+    , streamPrograms  :: [ProgramName]
+    }
+
 data TargetItem = TargetItem {semantic::ImageSemantic,ref::Maybe ImageRef}
 data RenderTarget = RenderTarget
     { renderTargets :: [TargetItem] -- render texture or default framebuffer (semantic, render texture for the program output)
@@ -346,5 +360,6 @@ data Pipeline = Pipeline
     , targets       :: [RenderTarget]
     , programs      :: [Program]
     , slots         :: [Slot]
+    , streams       :: [StreamData]
     , commands      :: [Command]
     }
