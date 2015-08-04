@@ -1,15 +1,15 @@
 module IR where
-
+import Prelude
 import Data.Maybe
 import Data.StrMap
+import Data.List (List(..))
 
-type Int = Number
-type Word = Number
+type Word = Int
 type Float = Number
-type Int16 = Number
-type Int32 = Number
-type Word16 = Number
-type Word32 = Number
+type Int16 = Int
+type Int32 = Int
+type Word16 = Int
+type Word32 = Int
 type Bool = Boolean
 
 data V2 a = V2 a a
@@ -41,10 +41,10 @@ type V3B = V3 Bool
 type V4B = V4 Bool
 
 data ArrayValue
-  = VBoolArray  [Bool]
-  | VIntArray   [Int32]
-  | VWordArray  [Word32]
-  | VFloatArray [Float]
+  = VBoolArray  (Array Bool)
+  | VIntArray   (Array Int32)
+  | VWordArray  (Array Word32)
+  | VFloatArray (Array Float)
 
 -- GPU type value reification, needed for shader codegen
 data Value
@@ -176,12 +176,11 @@ data FetchPrimitive
     | TrianglesAdjacency
 
 instance eqFetchPrimitive :: Eq (FetchPrimitive) where
-  (==) Points             Points              = true
-  (==) Lines              Lines               = true
-  (==) Triangles          Triangles           = true
-  (==) LinesAdjacency     LinesAdjacency      = true
-  (==) TrianglesAdjacency TrianglesAdjacency  = true
-  (/=) a                  b                   = not (a == b)
+  eq Points             Points              = true
+  eq Lines              Lines               = true
+  eq Triangles          Triangles           = true
+  eq LinesAdjacency     LinesAdjacency      = true
+  eq TrianglesAdjacency TrianglesAdjacency  = true
 
 instance showFetchPrimitive :: Show (FetchPrimitive) where
   show Points             = "Points"
@@ -222,7 +221,7 @@ data FragmentOperation
 
 data AccumulationContext = AccumulationContext
     { accViewportName   :: Maybe String
-    , accOperations     :: [FragmentOperation]
+    , accOperations     :: List FragmentOperation
     }
 
 data TextureDataType
@@ -296,7 +295,7 @@ data Command
     | SetSampler                TextureUnit (Maybe SamplerName)     -- binds sampler to the specified texture unit
     | RenderSlot                SlotName
     | RenderStream              StreamName
-    | ClearRenderTarget         [ClearImage]
+    | ClearRenderTarget         (Array ClearImage)
     | GenerateMipMap            TextureUnit
     | SaveImage                 FrameBufferComponent ImageRef                            -- from framebuffer component to texture (image)
     | LoadImage                 ImageRef FrameBufferComponent                            -- from texture (image) to framebuffer component
@@ -328,7 +327,7 @@ data Program = Program  -- AST, input
     { programUniforms   :: StrMap InputType    -- uniform input (value based uniforms only / no textures)
     , programStreams    :: StrMap Parameter  -- vertex shader input attribute name -> (slot attribute name, attribute type)
     , programInTextures :: StrMap InputType               -- all textures (uniform textures and render textures) referenced by the program
-    , programOutput     :: [Parameter]
+    , programOutput     :: Array Parameter
     , vertexShader      :: String
     , geometryShader    :: Maybe String
     , fragmentShader    :: String
@@ -339,27 +338,27 @@ data Slot = Slot      -- input, primitive type
     , slotUniforms  :: StrMap InputType
     , slotStreams   :: StrMap InputType
     , slotPrimitive :: FetchPrimitive
-    , slotPrograms  :: [ProgramName]
+    , slotPrograms  :: Array ProgramName
     }
 
 data StreamData = StreamData
     { streamData      :: StrMap ArrayValue
     , streamType      :: StrMap InputType
     , streamPrimitive :: FetchPrimitive
-    , streamPrograms  :: [ProgramName]
+    , streamPrograms  :: Array ProgramName
     }
 
 data TargetItem = TargetItem {semantic::ImageSemantic,ref::Maybe ImageRef}
 data RenderTarget = RenderTarget
-    { renderTargets :: [TargetItem] -- render texture or default framebuffer (semantic, render texture for the program output)
+    { renderTargets :: Array TargetItem -- render texture or default framebuffer (semantic, render texture for the program output)
     }
 
 data Pipeline = Pipeline
-    { textures      :: [TextureDescriptor]
-    , samplers      :: [SamplerDescriptor]
-    , targets       :: [RenderTarget]
-    , programs      :: [Program]
-    , slots         :: [Slot]
-    , streams       :: [StreamData]
-    , commands      :: [Command]
+    { textures      :: Array TextureDescriptor
+    , samplers      :: Array SamplerDescriptor
+    , targets       :: Array RenderTarget
+    , programs      :: Array Program
+    , slots         :: Array Slot
+    , streams       :: Array StreamData
+    , commands      :: Array Command
     }

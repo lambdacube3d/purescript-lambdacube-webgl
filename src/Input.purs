@@ -1,6 +1,7 @@
 module Input where
 
-import Prelude.Unsafe (unsafeIndex)
+import Prelude
+import Data.Array.Unsafe (unsafeIndex)
 import Control.Bind
 import Control.Monad
 import Control.Monad.Eff
@@ -12,8 +13,11 @@ import qualified Data.StrMap.Unsafe as StrMap
 import Data.Foldable
 import Data.Traversable
 import Data.Maybe
+import Data.Maybe.Unsafe (fromJust)
 import Data.Tuple
 import Data.Array
+import Data.Int
+import qualified Data.List as List
 import Type
 import IR
 import Util
@@ -26,23 +30,23 @@ schemaFromPipeline (IR.Pipeline ppl) = do
     return $ Tuple s.slotName {primitive: s.slotPrimitive, attributes: a}
   let ul = map (\(Slot s) -> s.slotUniforms) ppl.slots
   return $
-    { slots: StrMap.fromList sl
+    { slots: StrMap.fromList $ List.toList sl
     , uniforms: foldl StrMap.union (StrMap.empty :: StrMap.StrMap InputType) ul
     }
 
-mkUniform :: [Tuple String InputType] -> GFX (Tuple (StrMap.StrMap InputSetter) (StrMap.StrMap GLUniform))
+mkUniform :: Array (Tuple String InputType) -> GFX (Tuple (StrMap.StrMap InputSetter) (StrMap.StrMap GLUniform))
 mkUniform l = do
   unisAndSetters <- for l $ \(Tuple n t) -> do
     (Tuple uni setter) <- mkUniformSetter t
     return $ Tuple (Tuple n uni) (Tuple n setter)
-  let fun (Tuple unis setters) = Tuple (StrMap.fromList setters) (StrMap.fromList unis)
+  let fun (Tuple unis setters) = Tuple (StrMap.fromList $ List.toList setters) (StrMap.fromList $ List.toList unis)
   return $ fun $ unzip unisAndSetters
 
 mkWebGLPipelineInput :: PipelineSchema -> GFX WebGLPipelineInput
 mkWebGLPipelineInput sch = do
-  let sm = StrMap.fromList $ zip (StrMap.keys sch.slots) (0..len)
-      len = StrMap.size sch.slots
-  Tuple setters unis <- mkUniform $ StrMap.toList $ sch.uniforms
+  let sm = StrMap.fromList $ List.zip (List.toList $ StrMap.keys sch.slots) (List.range 0 len)
+      len = fromJust $ fromNumber $ StrMap.size sch.slots
+  Tuple setters unis <- mkUniform $ List.fromList $ StrMap.toList sch.uniforms
   slotV <- replicateM len $ newRef {objectMap: Map.empty :: Map.Map Int GLObject, sortedObjects: [], orderJob: Ordered}
   seed <- newRef 0
   size <- newRef (V2 0 0)
@@ -58,7 +62,7 @@ mkWebGLPipelineInput sch = do
     , pipelines     : ppls
     }
 
-addObject :: WebGLPipelineInput -> String -> Primitive -> Maybe (IndexStream Buffer) -> StrMap.StrMap (Stream Buffer) -> [String] -> GFX GLObject
+addObject :: WebGLPipelineInput -> String -> Primitive -> Maybe (IndexStream Buffer) -> StrMap.StrMap (Stream Buffer) -> Array String -> GFX GLObject
 addObject input slotName prim indices attribs uniformNames = do
     for_ uniformNames $ \n -> case StrMap.lookup n input.schema.uniforms of
         Nothing -> throwException $ error $ "Unknown uniform: " ++ show n
@@ -118,7 +122,7 @@ addObject input slotName prim indices attribs uniformNames = do
                     return []   -- this slot is not used in that pipeline
                 Just pSlotIdx -> do
                     let emptyV = replicate (length p.programs) []
-                        addCmds v prgIdx = updateAt prgIdx (createObjectCommands {-(glTexUnitMapping p)-}{} input.uniformSetup obj (p.programs `unsafeIndex` prgIdx)) v
+                        addCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands {-(glTexUnitMapping p)-}{} input.uniformSetup obj (p.programs `unsafeIndex` prgIdx)) v
                     return $ foldl addCmds emptyV $ p.slotPrograms `unsafeIndex` pSlotIdx
     writeRef cmdsRef cmds
     return obj
@@ -152,7 +156,7 @@ sortSlotObjects p = do
             objs <- for (Map.values slot.objectMap) $ \obj -> do
                 ord <- readRef obj.order
                 return $ Tuple ord obj
-            doSort objs
+            doSort $ List.fromList objs
         Reorder -> do
             objs <- for slot.sortedObjects $ \(Tuple _ obj) -> do
                 ord <- readRef obj.order
@@ -238,7 +242,7 @@ uniformM44F n is = case StrMap.lookup n is of
   Just (SM44F fun) -> fun
   _ -> nullSetter n "M44F"
 
-createObjectCommands :: {} -> {-Trie (IORef GLint) -> -}StrMap.StrMap GLUniform -> GLObject -> GLProgram -> [GLObjectCommand]
+createObjectCommands :: {} -> {-Trie (IORef GLint) -> -}StrMap.StrMap GLUniform -> GLObject -> GLProgram -> Array GLObjectCommand
 createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamCmds, [objDrawCmd]]
   where
     -- object draw command
@@ -247,7 +251,7 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
         streamLen a = case a of
           Stream s  -> [s.length]
           _         -> []
-        count = (concatMap streamLen $ StrMap.values obj.attributes) `unsafeIndex` 0
+        count = (concatMap streamLen $ List.fromList $ StrMap.values obj.attributes) `unsafeIndex` 0
       in case obj.indices of
         Nothing -> GLDrawArrays prim 0 count
         Just is -> let 
@@ -260,7 +264,7 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
     -- texture slot setup commands
     objUniCmds = uniCmds -- `append` texCmds
       where
-        uniMap  = StrMap.toList prg.inputUniforms
+        uniMap  = List.fromList $ StrMap.toList prg.inputUniforms
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ case StrMap.lookup n obj.uniSetup of
           Nothing -> topUnis `StrMap.unsafeIndex` n
           Just u  -> u
@@ -275,7 +279,7 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
         -}
 
     -- object attribute stream commands
-    objStreamCmds = flip map (StrMap.values prg.inputStreams) $ \is -> let
+    objStreamCmds = flip map (List.fromList $ StrMap.values prg.inputStreams) $ \is -> let
         s = obj.attributes `StrMap.unsafeIndex` is.slotAttribute
         i = is.location
       in case s of

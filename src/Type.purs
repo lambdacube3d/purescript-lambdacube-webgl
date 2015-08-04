@@ -1,7 +1,8 @@
 module Type where
 
-import Debug.Trace
+import Prelude
 import Control.Monad.Eff
+import qualified Control.Monad.Eff.Console as C
 import Control.Monad.Eff.Ref
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.WebGL
@@ -12,11 +13,12 @@ import qualified Data.Map as Map
 import Data.Tuple
 import Data.Maybe
 import Data.Array
+import Data.Int
 import qualified Data.ArrayBuffer.Types as AB
 
 import IR
 
-type GFX a = forall e . Eff (webgl :: WebGl, trace :: Trace, err :: Exception, ref :: Ref | e) a
+type GFX a = forall e . Eff (webgl :: WebGl, console :: C.CONSOLE, err :: EXCEPTION, ref :: REF | e) a
 
 type IntMap a = Map.Map Int a
 
@@ -24,7 +26,7 @@ foreign import data ArrayBuffer :: *
 foreign import data ArrayView :: *
 
 type Buffer = -- internal type
-    { arrays    :: [ArrayDesc]
+    { arrays    :: Array ArrayDesc
     , glBuffer  :: GL.WebGLBuffer
     , buffer    :: ArrayBuffer
     }
@@ -52,7 +54,7 @@ sizeOfArrayType ArrInt16  = 2
 sizeOfArrayType ArrFloat  = 4
 
 -- describes an array in a buffer
-data LCArray = Array ArrayType [Number]
+data LCArray = Array ArrayType (Array Number)
 
 data StreamType
     = TFloat
@@ -64,15 +66,14 @@ data StreamType
     | TM44F 
 
 instance eqStreamType :: Eq (StreamType) where
-  (==) TFloat TFloat = true
-  (==) TV2F   TV2F   = true
-  (==) TV3F   TV3F   = true
-  (==) TV4F   TV4F   = true
-  (==) TM22F  TM22F  = true
-  (==) TM33F  TM33F  = true
-  (==) TM44F  TM44F  = true
-  (==) _      _      = false
-  (/=) a      b      = not (a == b)
+  eq TFloat TFloat = true
+  eq TV2F   TV2F   = true
+  eq TV3F   TV3F   = true
+  eq TV4F   TV4F   = true
+  eq TM22F  TM22F  = true
+  eq TM33F  TM33F  = true
+  eq TM44F  TM44F  = true
+  eq _      _      = false
 
 instance showStreamType :: Show (StreamType) where
   show TFloat = "TFloat"
@@ -141,7 +142,7 @@ data OrderJob
 
 type GLSlot =
     { objectMap     :: IntMap GLObject
-    , sortedObjects :: [Tuple Int GLObject]
+    , sortedObjects :: Array (Tuple Int GLObject)
     , orderJob      :: OrderJob
     }
 
@@ -165,12 +166,12 @@ data GLUniform
 type WebGLPipelineInput =
     { schema        :: PipelineSchema
     , slotMap       :: StrMap.StrMap Int
-    , slotVector    :: [RefVal GLSlot]
-    , objSeed       :: RefVal Int
+    , slotVector    :: Array (Ref GLSlot)
+    , objSeed       :: Ref Int
     , uniformSetter :: StrMap.StrMap InputSetter
     , uniformSetup  :: StrMap.StrMap GLUniform
-    , screenSize    :: RefVal V2U
-    , pipelines     :: RefVal [(Maybe WebGLPipeline)] -- attached pipelines
+    , screenSize    :: Ref V2U
+    , pipelines     :: Ref (Array (Maybe WebGLPipeline)) -- attached pipelines
     }
 
 type GLObject = -- internal type
@@ -180,36 +181,36 @@ type GLObject = -- internal type
     , attributes :: StrMap.StrMap (Stream Buffer)
     , uniSetter  :: StrMap.StrMap InputSetter
     , uniSetup   :: StrMap.StrMap GLUniform
-    , order      :: RefVal Int
-    , enabled    :: RefVal Bool
+    , order      :: Ref Int
+    , enabled    :: Ref Bool
     , id         :: Int
-    , commands   :: RefVal [[[GLObjectCommand]]]  -- pipeline id, program name, commands
+    , commands   :: Ref (Array (Array (Array GLObjectCommand)))  -- pipeline id, program name, commands
     }
 
 data InputConnection = InputConnection
   { id                      :: Int                -- identifier (vector index) for attached pipeline
   , input                   :: WebGLPipelineInput
-  , slotMapPipelineToInput  :: [SlotName]         -- GLPipeline to GLPipelineInput slot name mapping
-  , slotMapInputToPipeline  :: [Maybe SlotName]   -- GLPipelineInput to GLPipeline slot name mapping
+  , slotMapPipelineToInput  :: Array SlotName         -- GLPipeline to GLPipelineInput slot name mapping
+  , slotMapInputToPipeline  :: Array (Maybe SlotName)   -- GLPipelineInput to GLPipeline slot name mapping
   }
 
 type GLStream =
-  { commands    :: RefVal [GLObjectCommand]
+  { commands    :: Ref (Array GLObjectCommand)
   , primitive   :: Primitive
   , attributes  :: StrMap.StrMap (Stream Buffer)
   , program     :: ProgramName
   }
 
 type WebGLPipeline =
-  { targets       :: [GLRenderTarget]
-  , textures      :: [GLTexture]
-  , programs      :: [GLProgram]
-  , commands      :: [Command]
-  , input         :: RefVal (Maybe InputConnection)
-  , slotNames     :: [String]
-  , slotPrograms  :: [[ProgramName]] -- program list for every slot (programs depend on a slot)
-  , curProgram    :: RefVal (Maybe Int)
-  , streams       :: [GLStream]
+  { targets       :: Array GLRenderTarget
+  , textures      :: Array GLTexture
+  , programs      :: Array GLProgram
+  , commands      :: Array Command
+  , input         :: Ref (Maybe InputConnection)
+  , slotNames     :: Array String
+  , slotPrograms  :: Array (Array ProgramName) -- program list for every slot (programs depend on a slot)
+  , curProgram    :: Ref (Maybe Int)
+  , streams       :: Array GLStream
   }
 
 type GLTexture =
@@ -219,12 +220,12 @@ type GLTexture =
 
 type GLRenderTarget =
     { framebufferObject         :: GL.WebGLFramebuffer
-    , framebufferDrawbuffers    :: Maybe [GL.GLenum]
+    , framebufferDrawbuffers    :: Maybe (Array GL.GLenum)
     }
 
 type GLProgram =
   { program       :: GL.WebGLProgram
-  , shaders       :: [GL.WebGLShader]
+  , shaders       :: Array GL.WebGLShader
   , inputUniforms :: StrMap.StrMap GL.WebGLUniformLocation
   , inputSamplers :: StrMap.StrMap GL.WebGLUniformLocation
   , inputStreams  :: StrMap.StrMap {location :: GL.GLint, slotAttribute :: String}
@@ -270,11 +271,24 @@ streamToStreamType s = case s of
     Stream t -> t.sType
 
 class NumberStorable a where
-  toArray :: a -> [Number]
+  toArray :: a -> Array Number
 
+instance intStorable  :: NumberStorable Int  where toArray a = [toNumber a]
 instance numStorable  :: NumberStorable Number  where toArray a = [a]
-instance boolStorable :: NumberStorable Boolean where toArray a = [if a then 1 else 0]
+instance boolStorable :: NumberStorable Boolean where toArray a = [if a then 1.0 else 0.0]
 instance v2Storable   :: (NumberStorable a) => NumberStorable (V2 a)  where toArray (V2 x y) = concatMap toArray [x,y]
 instance v3Storable   :: (NumberStorable a) => NumberStorable (V3 a)  where toArray (V3 x y z) = concatMap toArray [x,y,z]
 instance v4Storable   :: (NumberStorable a) => NumberStorable (V4 a)  where toArray (V4 x y z w) = concatMap toArray [x,y,z,w]
-instance arrStorable  :: (NumberStorable a) => NumberStorable [a]     where toArray a = concatMap toArray a
+instance arrStorable  :: (NumberStorable a) => NumberStorable (Array a)     where toArray a = concatMap toArray a
+
+class IntStorable a where
+  toIntArray :: a -> Array Int
+
+instance intIntStorable  :: IntStorable Int  where toIntArray a = [a]
+--instance numIntStorable  :: IntStorable Number  where toIntArray a = [a]
+instance boolIntStorable :: IntStorable Boolean where toIntArray a = [if a then 1 else 0]
+instance v2IntStorable   :: (IntStorable a) => IntStorable (V2 a)  where toIntArray (V2 x y) = concatMap toIntArray [x,y]
+instance v3IntStorable   :: (IntStorable a) => IntStorable (V3 a)  where toIntArray (V3 x y z) = concatMap toIntArray [x,y,z]
+instance v4IntStorable   :: (IntStorable a) => IntStorable (V4 a)  where toIntArray (V4 x y z w) = concatMap toIntArray [x,y,z,w]
+instance arrIntStorable  :: (IntStorable a) => IntStorable (Array a)     where toIntArray a = concatMap toIntArray a
+

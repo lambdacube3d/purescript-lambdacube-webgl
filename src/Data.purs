@@ -1,6 +1,7 @@
 module Data where
 
-import Debug.Trace
+import Prelude
+import qualified Control.Monad.Eff.Console as C
 import Control.Monad
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
@@ -16,7 +17,7 @@ import IR
 import Type
 import Util
 
-compileBuffer :: [LCArray] -> GFX Buffer
+compileBuffer :: Array LCArray -> GFX Buffer
 compileBuffer arrs = do
     let offsets = [0] `append` scanl (\s (Array t a) -> s + sizeOfArrayType t * length a) 0 arrs -- BUG:  scanl (+) 0 [1,1] == [1,2] =!= [0,1,2]
         size = case last offsets of
@@ -43,7 +44,7 @@ compileBuffer arrs = do
     GL.bindBuffer_ GL._ARRAY_BUFFER nullWebGLBuffer
     return {arrays: descs, glBuffer: bo, buffer: b}
 
-updateBuffer :: Buffer -> [Tuple Int LCArray] -> GFX Unit
+updateBuffer :: Buffer -> Array (Tuple Int LCArray) -> GFX Unit
 updateBuffer b arrs = do
   for_ arrs $ \(Tuple i (Array t a)) -> case b.arrays !! i of
     Nothing -> throwException $ error "wrong index"

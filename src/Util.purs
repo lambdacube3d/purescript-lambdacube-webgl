@@ -1,7 +1,7 @@
 module Util where
 
-import Debug.Trace
-
+import Prelude
+import qualified Control.Monad.Eff.Console as C
 import qualified Graphics.WebGLRaw as GL
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
@@ -10,6 +10,7 @@ import Control.Monad.Eff.WebGL
 import Data.Tuple
 import Data.Maybe
 import Data.Array
+import Data.List (List(..))
 import qualified Data.ArrayBuffer.Types as AB
 import qualified Data.TypedArray as TA
 import Math
@@ -66,36 +67,25 @@ toStreamType a = case a of
   M44F  -> return TM44F
   _     -> throwException $ error "invalid Stream Type"
 
-foreign import setFloatArray
-  """function setFloatArray(ta) {
-      return function(a) {
-        return function(){ta.set(a);};
-      };
-     }""" :: AB.Float32Array -> [Float] -> GFX Unit
-
-foreign import setIntArray
-  """function setIntArray(ta) {
-      return function(a) {
-        return function(){ta.set(a);};
-      };
-     }""" :: AB.Int32Array -> [Int] -> GFX Unit
+foreign import setFloatArray :: AB.Float32Array -> Array Float -> GFX Unit
+foreign import setIntArray :: AB.Int32Array -> Array Int -> GFX Unit
 
 mkUniformSetter :: InputType -> GFX (Tuple GLUniform InputSetter)
-mkUniformSetter t@Bool  = let r = TA.asInt32Array [0]                in return $ Tuple (UniBool  r) (SBool  $ setIntArray r <<< toArray)
-mkUniformSetter t@V2B   = let r = TA.asInt32Array (replicate 2 0)    in return $ Tuple (UniV2B   r) (SV2B   $ setIntArray r <<< toArray)
-mkUniformSetter t@V3B   = let r = TA.asInt32Array (replicate 3 0)    in return $ Tuple (UniV3B   r) (SV3B   $ setIntArray r <<< toArray)
-mkUniformSetter t@V4B   = let r = TA.asInt32Array (replicate 4 0)    in return $ Tuple (UniV4B   r) (SV4B   $ setIntArray r <<< toArray)
-mkUniformSetter t@Int   = let r = TA.asInt32Array [0]                in return $ Tuple (UniInt   r) (SInt   $ setIntArray r <<< toArray)
-mkUniformSetter t@V2I   = let r = TA.asInt32Array (replicate 2 0)    in return $ Tuple (UniV2I   r) (SV2I   $ setIntArray r <<< toArray)
-mkUniformSetter t@V3I   = let r = TA.asInt32Array (replicate 3 0)    in return $ Tuple (UniV3I   r) (SV3I   $ setIntArray r <<< toArray)
-mkUniformSetter t@V4I   = let r = TA.asInt32Array (replicate 4 0)    in return $ Tuple (UniV4I   r) (SV4I   $ setIntArray r <<< toArray)
-mkUniformSetter t@Float = let r = TA.asFloat32Array [0]              in return $ Tuple (UniFloat r) (SFloat $ setFloatArray r <<< toArray)
-mkUniformSetter t@V2F   = let r = TA.asFloat32Array (replicate 2 0)  in return $ Tuple (UniV2F   r) (SV2F   $ setFloatArray r <<< toArray)
-mkUniformSetter t@V3F   = let r = TA.asFloat32Array (replicate 3 0)  in return $ Tuple (UniV3F   r) (SV3F   $ setFloatArray r <<< toArray)
-mkUniformSetter t@V4F   = let r = TA.asFloat32Array (replicate 4 0)  in return $ Tuple (UniV4F   r) (SV4F   $ setFloatArray r <<< toArray)
-mkUniformSetter t@M22F  = let r = TA.asFloat32Array (replicate 4 0)  in return $ Tuple (UniM22F  r) (SM22F  $ setFloatArray r <<< toArray)
-mkUniformSetter t@M33F  = let r = TA.asFloat32Array (replicate 9 0)  in return $ Tuple (UniM33F  r) (SM33F  $ setFloatArray r <<< toArray)
-mkUniformSetter t@M44F  = let r = TA.asFloat32Array (replicate 16 0) in return $ Tuple (UniM44F  r) (SM44F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@Bool  = let r = TA.asInt32Array [0]                in return $ Tuple (UniBool  r) (SBool  $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V2B   = let r = TA.asInt32Array (replicate 2 0)    in return $ Tuple (UniV2B   r) (SV2B   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V3B   = let r = TA.asInt32Array (replicate 3 0)    in return $ Tuple (UniV3B   r) (SV3B   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V4B   = let r = TA.asInt32Array (replicate 4 0)    in return $ Tuple (UniV4B   r) (SV4B   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@Int   = let r = TA.asInt32Array [0]                in return $ Tuple (UniInt   r) (SInt   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V2I   = let r = TA.asInt32Array (replicate 2 0)    in return $ Tuple (UniV2I   r) (SV2I   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V3I   = let r = TA.asInt32Array (replicate 3 0)    in return $ Tuple (UniV3I   r) (SV3I   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V4I   = let r = TA.asInt32Array (replicate 4 0)    in return $ Tuple (UniV4I   r) (SV4I   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@Float = let r = TA.asFloat32Array [0.0]              in return $ Tuple (UniFloat r) (SFloat $ setFloatArray r <<< toArray)
+mkUniformSetter t@V2F   = let r = TA.asFloat32Array (replicate 2 0.0)  in return $ Tuple (UniV2F   r) (SV2F   $ setFloatArray r <<< toArray)
+mkUniformSetter t@V3F   = let r = TA.asFloat32Array (replicate 3 0.0)  in return $ Tuple (UniV3F   r) (SV3F   $ setFloatArray r <<< toArray)
+mkUniformSetter t@V4F   = let r = TA.asFloat32Array (replicate 4 0.0)  in return $ Tuple (UniV4F   r) (SV4F   $ setFloatArray r <<< toArray)
+mkUniformSetter t@M22F  = let r = TA.asFloat32Array (replicate 4 0.0)  in return $ Tuple (UniM22F  r) (SM22F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@M33F  = let r = TA.asFloat32Array (replicate 9 0.0)  in return $ Tuple (UniM33F  r) (SM33F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@M44F  = let r = TA.asFloat32Array (replicate 16 0.0) in return $ Tuple (UniM44F  r) (SM44F  $ setFloatArray r <<< toArray)
 
 primitiveToFetchPrimitive :: Primitive -> FetchPrimitive
 primitiveToFetchPrimitive prim = case prim of
@@ -107,10 +97,10 @@ primitiveToFetchPrimitive prim = case prim of
   LineList                -> Lines
   PointList               -> Points
 
-unlines :: [String] -> String
-unlines [] = ""
-unlines [x] = x
-unlines (x:xs) = x ++ "\n" ++ unlines xs
+unlines :: Array String -> String
+unlines l = case uncons l of
+  Nothing -> ""
+  Just a  -> if null a.tail then a.head else a.head ++ "\n" ++ unlines a.tail
 
 setVertexAttrib :: GL.GLuint -> Stream Buffer -> GFX Unit
 setVertexAttrib i val = case val of
@@ -183,95 +173,24 @@ arrayTypeToGLType a = case a of
   ArrFloat    -> GL._FLOAT
 
 -- custom typed array buffer and view functions
-foreign import newArrayBuffer
-  """function newArrayBuffer(s) {
-      return function() {return new ArrayBuffer(s);};
-     }""" :: Int -> GFX ArrayBuffer
-
-foreign import newWord8View
-  """function newWord8View(b) {
-      return function(o) {
-        return function(l) {
-          return function(){return new Uint8Array(b,o,l);};
-        };
-      };
-     }""" :: ArrayBuffer -> Int -> Int -> GFX ArrayView
-
-foreign import newWord16View
-  """function newWord16View(b) {
-      return function(o) {
-        return function(l) {
-          return function(){return new Uint16Array(b,o,l);};
-        };
-      };
-     }""" :: ArrayBuffer -> Int -> Int -> GFX ArrayView
-
-foreign import newInt8View
-  """function newInt8View(b) {
-      return function(o) {
-        return function(l) {
-          return function(){return new Int8Array(b,o,l);};
-        };
-      };
-     }""" :: ArrayBuffer -> Int -> Int -> GFX ArrayView
-
-foreign import newInt16View
-  """function newInt16View(b) {
-      return function(o) {
-        return function(l) {
-          return function(){return new Int16Array(b,o,l);};
-        };
-      };
-     }""" :: ArrayBuffer -> Int -> Int -> GFX ArrayView
-
-foreign import newFloatView
-  """function newFloatView(b) {
-      return function(o) {
-        return function(l) {
-          return function(){return new Float32Array(b,o,l);};
-        };
-      };
-     }""" :: ArrayBuffer -> Int -> Int -> GFX ArrayView
-
-foreign import setArrayView
-  """function setArrayView(av) {
-      return function(a) {
-        return function(){av.set(a);};
-      };
-     }""" :: ArrayView -> [Number] -> GFX Unit
-
-foreign import nullWebGLBuffer "var nullWebGLBuffer = null" :: GL.WebGLBuffer
-
-foreign import bufferDataAlloc
-  """function bufferDataAlloc(target)
-   {return function(size)
-    {return function(usage)
-     {return function()
-      {gl.bufferData(target,size,usage);};};};};"""
-    :: forall eff. GL.GLenum -> Int -> GL.GLenum -> GFX Unit
-
-foreign import bufferSubDataArrayBuffer
-  """function bufferSubDataArrayBuffer(target)
-   {return function(offset)
-    {return function(data)
-     {return function()
-      {gl.bufferSubData(target,offset,data);};};};};"""
-    :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayBuffer -> GFX Unit
-
-foreign import bufferSubDataArrayView
-  """function bufferSubDataArrayView(target)
-   {return function(offset)
-    {return function(data)
-     {return function()
-      {gl.bufferSubData(target,offset,data);};};};};"""
-    :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayView -> GFX Unit
+foreign import newArrayBuffer :: Int -> GFX ArrayBuffer
+foreign import newWord8View :: ArrayBuffer -> Int -> Int -> GFX ArrayView
+foreign import newWord16View :: ArrayBuffer -> Int -> Int -> GFX ArrayView
+foreign import newInt8View :: ArrayBuffer -> Int -> Int -> GFX ArrayView
+foreign import newInt16View :: ArrayBuffer -> Int -> Int -> GFX ArrayView
+foreign import newFloatView :: ArrayBuffer -> Int -> Int -> GFX ArrayView
+foreign import setArrayView :: ArrayView -> Array Number -> GFX Unit
+foreign import nullWebGLBuffer :: GL.WebGLBuffer
+foreign import bufferDataAlloc :: forall eff. GL.GLenum -> Int -> GL.GLenum -> GFX Unit
+foreign import bufferSubDataArrayBuffer :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayBuffer -> GFX Unit
+foreign import bufferSubDataArrayView :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayView -> GFX Unit
 
 compileTexture :: TextureDescriptor -> GFX GLTexture
 compileTexture (TextureDescriptor txD) = do
   to <- (GL.createTexture_)
   let div a b = floor $ a / b
       mipSize 0 x = [x]
-      mipSize n x = x : mipSize (n-1) (x `div` 2)
+      mipSize n x = x : mipSize (n-1) (x / 2)
       mipS = mipSize (txD.textureMaxLevel - txD.textureBaseLevel)
       levels = txD.textureBaseLevel..txD.textureMaxLevel
       txSetup txTarget dTy = do
@@ -322,16 +241,6 @@ textureDataTypeToGLArityType Stencil a = case a of
     a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
 
 foreign import texImage2DNull_
-  """function texImage2DNull_(target)
-   {return function(level)
-    {return function(internalformat)
-     {return function(width)
-      {return function(height)
-       {return function(border)
-        {return function(format)
-         {return function(type)
-           {return function()
-            {gl.texImage2D(target,level,internalformat,width,height,border,format,type,null);};};};};};};};};};"""
     :: GL.GLenum->
        GL.GLint->
        GL.GLenum->
