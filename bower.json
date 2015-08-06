@@ -1,6 +1,6 @@
 {
-  "name": "lambdacube-webgl",
-  "homepage": "https://github.com/lambdacube3d/lambdacube-webgl",
+  "name": "purescript-lambdacube-webgl",
+  "homepage": "https://github.com/lambdacube3d/purescript-lambdacube-webgl",
   "description": "WebGL backend for LambdaCube 3D",
   "authors": [
     "Csaba Hruska <csaba.hruska@gmail.com>"

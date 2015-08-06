@@ -1,1 +1,1 @@
-# lambdacube-webgl
+# purescript-lambdacube-webgl

@@ -24,7 +24,6 @@ import Data.Maybe
 import Data.Maybe.Unsafe
 import Data.Array
 import qualified Data.List as List
-import Math
 
 import Type
 import IR
