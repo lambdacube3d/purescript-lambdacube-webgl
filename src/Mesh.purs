@@ -12,6 +12,12 @@ import Data.Tuple
 import Data.Int
 import qualified Data.List as List
 
+import Data.Argonaut.Combinators ((~>), (:=), (.?))
+import Data.Argonaut.Core (jsonEmptyObject)
+import Data.Argonaut.Printer (printJson)
+import Data.Argonaut.Encode (EncodeJson, encodeJson)
+import Data.Argonaut.Decode (DecodeJson, decodeJson)
+
 import IR
 import Linear
 import Type
@@ -44,7 +50,7 @@ data MeshPrimitive
     | P_TriangleStripI  (Array Word16)
     | P_TrianglesI      (Array Word16)
 
-type Mesh =
+data Mesh = Mesh
     { attributes  :: StrMap.StrMap MeshAttribute
     , primitive   :: MeshPrimitive
     , gpuData     :: Maybe GPUData
@@ -57,7 +63,7 @@ type GPUData =
     }
 
 addMesh :: WebGLPipelineInput -> String -> Mesh -> Array String -> GFX GLObject
-addMesh input slotName mesh objUniNames = case mesh.gpuData of
+addMesh input slotName (Mesh mesh) objUniNames = case mesh.gpuData of
   Nothing -> throwException $ error "addMesh: only compiled mesh with GPUData is supported"
   Just g -> case StrMap.lookup slotName input.schema.slots of
     Nothing -> throwException $ error "addMesh: slot not found"
@@ -67,8 +73,8 @@ addMesh input slotName mesh objUniNames = case mesh.gpuData of
       addObject input slotName g.primitive g.indices (StrMap.fromList $ List.filter filterStream $ StrMap.toList g.streams) objUniNames
 
 compileMesh :: Mesh -> GFX Mesh
-compileMesh mesh = case mesh.gpuData of
-  Just _ -> return mesh
+compileMesh (Mesh mesh) = case mesh.gpuData of
+  Just _ -> return $ Mesh mesh
   Nothing -> do
     let mkIndexBuf v = do
             iBuf <- compileBuffer [Array ArrWord16 (toArray v)]
@@ -82,7 +88,7 @@ compileMesh mesh = case mesh.gpuData of
         P_TrianglesI v      -> Tuple TriangleList <$> mkIndexBuf v
     let streams = StrMap.fromList $ List.zipWith (\i (Tuple n a) -> Tuple n (meshAttrToStream vBuf i a)) (List.range 0 $ fromJust $ fromNumber $ StrMap.size mesh.attributes) (StrMap.toList mesh.attributes)
         gpuData = {primitive: prim, streams: streams, indices: indices}
-    return $ mesh {gpuData = Just gpuData}
+    return $ Mesh $ mesh {gpuData = Just gpuData}
 
 meshAttrToArray :: MeshAttribute -> LCArray
 meshAttrToArray a = case a of
@@ -115,3 +121,34 @@ meshAttrToStream b i a = Stream $ case a of
         AT_M44F   -> Tuple TM44F  16
     in case tn of
       Tuple st n -> {sType: st , buffer: b, arrIdx: i , start: 0, length: length v / n}
+
+instance decodeJsonMeshPrimitive :: DecodeJson MeshPrimitive where
+  decodeJson json = do
+    obj <- decodeJson json
+    tag <- obj .? "tag"
+    case tag of
+      "P_Points"          -> pure P_Points
+      "P_TriangleStrip"   -> pure P_TriangleStrip
+      "P_Triangles"       -> pure P_Triangles
+      "P_TriangleStripI"  -> P_TriangleStripI <$> obj .? "values"
+      "P_TrianglesI"      -> P_TrianglesI <$> obj .? "values"
+
+instance decodeJsonMeshAttribute :: DecodeJson MeshAttribute where
+  decodeJson json = do
+    obj <- decodeJson json
+    tag <- obj .? "tag"
+    case tag of
+      "A_Float" -> A_Flat AT_Float <$> obj .? "values"
+      "A_V2F"   -> A_Flat AT_V2F   <$> obj .? "values"
+      "A_V3F"   -> A_Flat AT_V3F   <$> obj .? "values"
+      "A_V4F"   -> A_Flat AT_V4F   <$> obj .? "values"
+      "A_M22F"  -> A_Flat AT_M22F  <$> obj .? "values"
+      "A_M33F"  -> A_Flat AT_M33F  <$> obj .? "values"
+      "A_M44F"  -> A_Flat AT_M44F  <$> obj .? "values"
+
+instance decodeJsonMesh :: DecodeJson Mesh where
+  decodeJson json = do
+    obj <- decodeJson json
+    attributes <- obj .? "attributes"
+    primitive <- obj .? "primitive"
+    pure $ Mesh {attributes:attributes,primitive:primitive,gpuData:Nothing}
