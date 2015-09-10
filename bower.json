@@ -18,6 +18,7 @@
     "output"
   ],
   "dependencies": {
+    "purescript-argonaut-codecs": "~0.3.0",
     "purescript-console": "~0.1.1",
     "purescript-lists": "~0.7.4",
     "purescript-webgl": "~0.9.1",
