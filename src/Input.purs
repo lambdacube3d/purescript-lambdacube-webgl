@@ -20,6 +20,7 @@ import Data.Int
 import qualified Data.List as List
 import Type
 import IR
+import Linear
 import Util
 
 -- API

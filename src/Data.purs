@@ -14,6 +14,7 @@ import Data.Foldable
 import Data.Traversable
 
 import IR
+import Linear
 import Type
 import Util
 

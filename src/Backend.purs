@@ -27,6 +27,7 @@ import qualified Data.List as List
 
 import Type
 import IR
+import Linear
 import Util
 import Input
 import Data
@@ -143,17 +144,16 @@ setupAccumulationContext (AccumulationContext {accViewportName = n, accOperation
                 -- not presented: GL.enable_  GL._COLOR_LOGIC_OP
                 -- not presented: GL.logicOp_ $ logicOperationToGLType op
                 C.log "not presented: BlendLogicOp"
-            Blend eq fac (V4 r g b a) -> do
+            Blend blend -> do
+                V4 r g b a <- return blend.color
                 -- not presented: glDisable gl_COLOR_LOGIC_OP
                 -- FIXME: requires GL 3.1
                 --glEnablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
                 GL.enable_ GL._BLEND -- workaround
-                GL.blendEquationSeparate_ (blendEquationToGLType eq.colorEq) (blendEquationToGLType eq.alphaEq)
+                GL.blendEquationSeparate_ (blendEquationToGLType blend.colorEqSrc) (blendEquationToGLType blend.alphaEqSrc)
                 GL.blendColor_ r g b a
-                BlendingFactorPair colorF <- pure fac.colorF
-                BlendingFactorPair alphaF <- pure fac.alphaF
-                GL.blendFuncSeparate_ (blendingFactorToGLType colorF.src) (blendingFactorToGLType colorF.dst)
-                                      (blendingFactorToGLType alphaF.src) (blendingFactorToGLType alphaF.dst)
+                GL.blendFuncSeparate_ (blendingFactorToGLType blend.colorFSrc) (blendingFactorToGLType blend.colorFDst)
+                                      (blendingFactorToGLType blend.alphaFSrc) (blendingFactorToGLType blend.alphaFDst)
         case m of
           VBool r           -> GL.colorMask_ r true true true
           VV2B (V2 r g)     -> GL.colorMask_ r g true true
@@ -167,14 +167,14 @@ setupAccumulationContext (AccumulationContext {accViewportName = n, accOperation
 clearRenderTarget :: Array ClearImage -> GFX Unit
 clearRenderTarget values = do
     let setClearValue {mask:m,index:i} (ClearImage val) = case val of
-            {semantic = Depth, value = VFloat v} -> do
+            {imageSemantic = Depth, clearValue = VFloat v} -> do
                 GL.depthMask_ true
                 GL.clearDepth_ v
                 return {mask:m .|. GL._DEPTH_BUFFER_BIT, index:i}
-            {semantic = Stencil, value = VWord v} -> do
+            {imageSemantic = Stencil, clearValue = VWord v} -> do
                 GL.clearStencil_ v
                 return {mask:m .|. GL._STENCIL_BUFFER_BIT, index:i}
-            {semantic = Color, value = c} -> do
+            {imageSemantic = Color, clearValue = c} -> do
                 case c of
                   VFloat r            -> GL.clearColor_ r 0.0 0.0 1.0
                   VV2F (V2 r g)       -> GL.clearColor_ r g 0.0 1.0
@@ -235,16 +235,16 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
   let targets = rt.renderTargets
       isFB (Framebuffer _)    = true
       isFB _                  = false
-      images = map (\(TargetItem a) -> fromJust a.ref) $ filter (\(TargetItem a) -> isJust a.ref) targets
+      images = map (\(TargetItem a) -> fromJust a.targetRef) $ filter (\(TargetItem a) -> isJust a.targetRef) targets
       act1 = case all isFB images of
           true -> do
               let isColor Color = true
                   isColor _ = false
-                  cvt (TargetItem a) = case a.ref of
+                  cvt (TargetItem a) = case a.targetRef of
                       Nothing                     -> return GL._NONE
                       Just (Framebuffer Color)    -> return GL._BACK
                       _                           -> throwException $ error "internal error (compileRenderTarget)!"
-              bufs <- traverse cvt $ filter (\(TargetItem a) -> isColor a.semantic) targets
+              bufs <- traverse cvt $ filter (\(TargetItem a) -> isColor a.targetSemantic) targets
               return $
                   { framebufferObject: nullWebGLFramebuffer
                   , framebufferDrawbuffers: Just bufs
@@ -266,17 +266,17 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
                               _ -> throwException $ error "invalid texture format!"
                       act0
                   attach _ _ = throwException $ error "invalid texture format!"
-                  go a (TargetItem {semantic:Stencil, ref:Just img}) = do
+                  go a (TargetItem {targetSemantic:Stencil, targetRef:Just img}) = do
                       throwException $ error "Stencil support is not implemented yet!"
                       return a
-                  go a (TargetItem {semantic: Depth,ref: Just img}) = do
+                  go a (TargetItem {targetSemantic: Depth,targetRef: Just img}) = do
                       attach GL._DEPTH_ATTACHMENT img
                       return a
-                  go (Tuple bufs colorIdx) (TargetItem {semantic: Color,ref: Just img}) = do
+                  go (Tuple bufs colorIdx) (TargetItem {targetSemantic: Color,targetRef: Just img}) = do
                       let attachment = GL._COLOR_ATTACHMENT0
                       attach attachment img
                       return (Tuple (attachment : bufs) (colorIdx + 1))
-                  go (Tuple bufs colorIdx) (TargetItem {semantic: Color,ref: Nothing}) = return (Tuple (GL._NONE : bufs) (colorIdx + 1))
+                  go (Tuple bufs colorIdx) (TargetItem {targetSemantic: Color,targetRef: Nothing}) = return (Tuple (GL._NONE : bufs) (colorIdx + 1))
                   go a _ = return a
               (Tuple bufs _) <- foldM go (Tuple [] 0) targets
               return $

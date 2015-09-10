@@ -13,6 +13,7 @@ import Data.Int
 import qualified Data.List as List
 
 import IR
+import Linear
 import Type
 import Data
 import Input

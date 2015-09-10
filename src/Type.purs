@@ -17,6 +17,7 @@ import Data.Int
 import qualified Data.ArrayBuffer.Types as AB
 
 import IR
+import Linear
 
 type GFX a = forall e . Eff (webgl :: WebGl, console :: C.CONSOLE, err :: EXCEPTION, ref :: REF | e) a
 
