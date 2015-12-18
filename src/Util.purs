@@ -15,6 +15,7 @@ import qualified Data.ArrayBuffer.Types as AB
 import qualified Data.TypedArray as TA
 import Math
 import Data.Foldable
+import Data.Function
 
 import IR
 import Linear
@@ -124,35 +125,42 @@ setVertexAttrib i val = case val of
   _ -> throwException $ error "internal error (setVertexAttrib)!"
 
 setAFloat :: GL.GLuint -> Float -> GFX Unit
-setAFloat i v = GL.vertexAttrib1f_ i v
+setAFloat i v = runFn2 GL.vertexAttrib1f_ i v
 
 setAV2F :: GL.GLuint -> V2F -> GFX Unit
-setAV2F i (V2 x y) = GL.vertexAttrib2f_ i x y
+setAV2F i (V2 x y) = runFn3 GL.vertexAttrib2f_ i x y
 
 setAV3F :: GL.GLuint -> V3F -> GFX Unit
-setAV3F i (V3 x y z) = GL.vertexAttrib3f_ i x y z
+setAV3F i (V3 x y z) = runFn4 GL.vertexAttrib3f_ i x y z
 
 setAV4F :: GL.GLuint -> V4F -> GFX Unit
-setAV4F i (V4 x y z w) = GL.vertexAttrib4f_ i x y z w
+setAV4F i (V4 x y z w) = runFn5 GL.vertexAttrib4f_ i x y z w
 
+{-
+foreign import uniform1iv_:: forall eff. Fn2 WebGLUniformLocation
+                                             Int32Array
+                                             (Eff (webgl :: WebGl | eff) Unit)
+
+  | uni.uType == _FLOAT_VEC4    = runFn2 uniform4fv_ uni.uLocation (asArrayBuffer value)
+-}
 -- sets value based uniforms only (does not handle textures)
-setUniform :: forall a . GL.WebGLUniformLocation -> GLUniform -> GFX Unit
+--setUniform :: forall a . GL.WebGLUniformLocation -> GLUniform -> GFX Unit
 setUniform i uni = case uni of
-  UniBool  r -> GL.uniform1iv_ i r
-  UniV2B   r -> GL.uniform2iv_ i r
-  UniV3B   r -> GL.uniform3iv_ i r
-  UniV4B   r -> GL.uniform4iv_ i r
-  UniInt   r -> GL.uniform1iv_ i r
-  UniV2I   r -> GL.uniform2iv_ i r
-  UniV3I   r -> GL.uniform3iv_ i r
-  UniV4I   r -> GL.uniform4iv_ i r
-  UniFloat r -> GL.uniform1fv_ i r
-  UniV2F   r -> GL.uniform2fv_ i r
-  UniV3F   r -> GL.uniform3fv_ i r
-  UniV4F   r -> GL.uniform4fv_ i r
-  UniM22F  r -> GL.uniformMatrix2fv_ i false r
-  UniM33F  r -> GL.uniformMatrix3fv_ i false r
-  UniM44F  r -> GL.uniformMatrix4fv_ i false r
+  UniBool  r -> runFn2 GL.uniform1iv_ i r
+  UniV2B   r -> runFn2 GL.uniform2iv_ i r
+  UniV3B   r -> runFn2 GL.uniform3iv_ i r
+  UniV4B   r -> runFn2 GL.uniform4iv_ i r
+  UniInt   r -> runFn2 GL.uniform1iv_ i r
+  UniV2I   r -> runFn2 GL.uniform2iv_ i r
+  UniV3I   r -> runFn2 GL.uniform3iv_ i r
+  UniV4I   r -> runFn2 GL.uniform4iv_ i r
+  UniFloat r -> runFn2 GL.uniform1fv_ i r
+  UniV2F   r -> runFn2 GL.uniform2fv_ i r
+  UniV3F   r -> runFn2 GL.uniform3fv_ i r
+  UniV4F   r -> runFn2 GL.uniform4fv_ i r
+  UniM22F  r -> runFn3 GL.uniformMatrix2fv_ i false r
+  UniM33F  r -> runFn3 GL.uniformMatrix3fv_ i false r
+  UniM44F  r -> runFn3 GL.uniformMatrix4fv_ i false r
   _ -> throwException $ error "internal error (setUniform)!"
 
 primitiveToGLType :: Primitive -> GL.GLenum
@@ -188,7 +196,7 @@ foreign import bufferSubDataArrayView :: forall eff. GL.GLenum -> GL.GLintptr ->
 
 compileTexture :: TextureDescriptor -> GFX GLTexture
 compileTexture (TextureDescriptor txD) = do
-  to <- (GL.createTexture_)
+  to <- runFn0 GL.createTexture_
   let div a b = floor $ a / b
       mipSize 0 x = [x]
       mipSize n x = x : mipSize (n-1) (x / 2)
@@ -197,7 +205,7 @@ compileTexture (TextureDescriptor txD) = do
       txSetup txTarget dTy = do
           internalFormat  <- textureDataTypeToGLType txD.textureSemantic dTy
           dataFormat      <- textureDataTypeToGLArityType txD.textureSemantic dTy
-          GL.bindTexture_ txTarget to
+          runFn2 GL.bindTexture_ txTarget to
           setTextureSamplerParameters txTarget txD.textureSampler
           return $ Tuple internalFormat dataFormat
   let act = case txD.textureType of
@@ -254,12 +262,12 @@ foreign import texImage2DNull_
 
 setTextureSamplerParameters :: GL.GLenum -> SamplerDescriptor -> GFX Unit
 setTextureSamplerParameters t (SamplerDescriptor s) = do
-    GL.texParameteri_ t GL._TEXTURE_WRAP_S $ edgeModeToGLType s.samplerWrapS
+    runFn3 GL.texParameteri_ t GL._TEXTURE_WRAP_S $ edgeModeToGLType s.samplerWrapS
     case s.samplerWrapT of
         Nothing -> return unit
-        Just a  -> GL.texParameteri_ t GL._TEXTURE_WRAP_T $ edgeModeToGLType a
-    GL.texParameteri_ t GL._TEXTURE_MIN_FILTER $ filterToGLType s.samplerMinFilter
-    GL.texParameteri_ t GL._TEXTURE_MAG_FILTER $ filterToGLType s.samplerMagFilter
+        Just a  -> runFn3 GL.texParameteri_ t GL._TEXTURE_WRAP_T $ edgeModeToGLType a
+    runFn3 GL.texParameteri_ t GL._TEXTURE_MIN_FILTER $ filterToGLType s.samplerMinFilter
+    runFn3 GL.texParameteri_ t GL._TEXTURE_MAG_FILTER $ filterToGLType s.samplerMagFilter
 
 filterToGLType :: Filter -> GL.GLenum
 filterToGLType a = case a of

@@ -12,6 +12,7 @@ import Data.Tuple
 import Data.Array
 import Data.Foldable
 import Data.Traversable
+import Data.Function
 
 import IR
 import Linear
@@ -38,11 +39,11 @@ compileBuffer arrs = do
       setArrayView view a
       return {arrType: t, arrLength: len, arrOffset: o, arrSize: bytes, arrView: view}
 
-    bo <- GL.createBuffer_
-    GL.bindBuffer_ GL._ARRAY_BUFFER bo
+    bo <- runFn0 GL.createBuffer_
+    runFn2 GL.bindBuffer_ GL._ARRAY_BUFFER bo
     bufferDataAlloc GL._ARRAY_BUFFER size GL._STATIC_DRAW
     bufferSubDataArrayBuffer GL._ARRAY_BUFFER 0 b
-    GL.bindBuffer_ GL._ARRAY_BUFFER nullWebGLBuffer
+    runFn2 GL.bindBuffer_ GL._ARRAY_BUFFER nullWebGLBuffer
     return {arrays: descs, glBuffer: bo, buffer: b}
 
 updateBuffer :: Buffer -> Array (Tuple Int LCArray) -> GFX Unit

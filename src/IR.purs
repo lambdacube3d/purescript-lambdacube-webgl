@@ -1,5 +1,5 @@
 -- generated file, do not modify!
--- 2015-09-10T14:18:30.472694000000Z
+-- 2015-10-26T11:19:50.664161000000Z
 
 module IR where
 import Prelude
@@ -15,6 +15,7 @@ import Data.Argonaut.Core (jsonEmptyObject)
 import Data.Argonaut.Printer (printJson)
 import Data.Argonaut.Encode (EncodeJson, encodeJson)
 import Data.Argonaut.Decode (DecodeJson, decodeJson)
+
 
 type StreamName = Int
 
@@ -233,9 +234,6 @@ data StencilOps
   }
 
 
-data StencilTests
-  = StencilTests StencilTest StencilTest
-
 data StencilTest
   = StencilTest
   { stencilComparision :: ComparisonFunction
@@ -243,6 +241,9 @@ data StencilTest
   , stencilMask :: Word32
   }
 
+
+data StencilTests
+  = StencilTests StencilTest StencilTest
 
 data FetchPrimitive
   = Points
@@ -327,14 +328,14 @@ data EdgeMode
   | ClampToEdge
   | ClampToBorder
 
-data ImageRef
-  = TextureImage TextureName Int (Maybe Int)
-  | Framebuffer ImageSemantic
-
 data ImageSemantic
   = Depth
   | Stencil
   | Color
+
+data ImageRef
+  = TextureImage TextureName Int (Maybe Int)
+  | Framebuffer ImageSemantic
 
 data ClearImage
   = ClearImage
@@ -358,17 +359,6 @@ data Command
   | SaveImage FrameBufferComponent ImageRef
   | LoadImage ImageRef FrameBufferComponent
 
-data TextureDescriptor
-  = TextureDescriptor
-  { textureType :: TextureType
-  , textureSize :: Value
-  , textureSemantic :: ImageSemantic
-  , textureSampler :: SamplerDescriptor
-  , textureBaseLevel :: Int
-  , textureMaxLevel :: Int
-  }
-
-
 data SamplerDescriptor
   = SamplerDescriptor
   { samplerWrapS :: EdgeMode
@@ -381,6 +371,17 @@ data SamplerDescriptor
   , samplerMaxLod :: Maybe Float
   , samplerLodBias :: Float
   , samplerCompareFunc :: Maybe ComparisonFunction
+  }
+
+
+data TextureDescriptor
+  = TextureDescriptor
+  { textureType :: TextureType
+  , textureSize :: Value
+  , textureSemantic :: ImageSemantic
+  , textureSampler :: SamplerDescriptor
+  , textureBaseLevel :: Int
+  , textureMaxLevel :: Int
   }
 
 
@@ -453,6 +454,10 @@ data Pipeline
 
 
 
+derive instance genericInputType :: Generic InputType
+instance showInputType :: Show InputType where show = gShow
+instance eqInputType   :: Eq InputType   where eq = gEq
+
 derive instance genericFetchPrimitive :: Generic FetchPrimitive
 instance showFetchPrimitive :: Show FetchPrimitive where show = gShow
 instance eqFetchPrimitive   :: Eq FetchPrimitive   where eq = gEq
@@ -465,6 +470,18 @@ derive instance genericTextureDataType :: Generic TextureDataType
 instance showTextureDataType :: Show TextureDataType where show = gShow
 instance eqTextureDataType   :: Eq TextureDataType   where eq = gEq
 
+derive instance genericImageSemantic :: Generic ImageSemantic
+instance showImageSemantic :: Show ImageSemantic where show = gShow
+instance eqImageSemantic   :: Eq ImageSemantic   where eq = gEq
+{-
+derive instance genericPipeline :: Generic Backend
+instance showPipeline :: Show Backend where show = gShow
+instance eqPipeline   :: Eq Backend   where eq = gEq
+
+derive instance genericPipeline :: Generic Pipeline
+instance showPipeline :: Show Pipeline where show = gShow
+instance eqPipeline   :: Eq Pipeline   where eq = gEq
+-}
 
 instance encodeJsonArrayValue :: EncodeJson ArrayValue where
   encodeJson v = case v of
@@ -938,17 +955,6 @@ instance decodeJsonStencilOps :: DecodeJson StencilOps where
           , backStencilOp:backStencilOp
           } 
 
-instance encodeJsonStencilTests :: EncodeJson StencilTests where
-  encodeJson v = case v of
-    StencilTests arg0 arg1 -> "tag" := "StencilTests" ~> "arg0" := arg0 ~> "arg1" := arg1 ~> jsonEmptyObject
-
-instance decodeJsonStencilTests :: DecodeJson StencilTests where
-  decodeJson json = do
-    obj <- decodeJson json
-    tag <- obj .? "tag"
-    case tag of
-      "StencilTests" -> StencilTests <$> obj .? "arg0" <*> obj .? "arg1"
-
 instance encodeJsonStencilTest :: EncodeJson StencilTest where
   encodeJson v = case v of
     StencilTest r ->
@@ -972,6 +978,17 @@ instance decodeJsonStencilTest :: DecodeJson StencilTest where
           , stencilReference:stencilReference
           , stencilMask:stencilMask
           } 
+
+instance encodeJsonStencilTests :: EncodeJson StencilTests where
+  encodeJson v = case v of
+    StencilTests arg0 arg1 -> "tag" := "StencilTests" ~> "arg0" := arg0 ~> "arg1" := arg1 ~> jsonEmptyObject
+
+instance decodeJsonStencilTests :: DecodeJson StencilTests where
+  decodeJson json = do
+    obj <- decodeJson json
+    tag <- obj .? "tag"
+    case tag of
+      "StencilTests" -> StencilTests <$> obj .? "arg0" <*> obj .? "arg1"
 
 instance encodeJsonFetchPrimitive :: EncodeJson FetchPrimitive where
   encodeJson v = case v of
@@ -1208,19 +1225,6 @@ instance decodeJsonEdgeMode :: DecodeJson EdgeMode where
       "ClampToEdge" -> pure ClampToEdge
       "ClampToBorder" -> pure ClampToBorder
 
-instance encodeJsonImageRef :: EncodeJson ImageRef where
-  encodeJson v = case v of
-    TextureImage arg0 arg1 arg2 -> "tag" := "TextureImage" ~> "arg0" := arg0 ~> "arg1" := arg1 ~> "arg2" := arg2 ~> jsonEmptyObject
-    Framebuffer arg0 -> "tag" := "Framebuffer" ~> "arg0" := arg0 ~> jsonEmptyObject
-
-instance decodeJsonImageRef :: DecodeJson ImageRef where
-  decodeJson json = do
-    obj <- decodeJson json
-    tag <- obj .? "tag"
-    case tag of
-      "TextureImage" -> TextureImage <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2"
-      "Framebuffer" -> Framebuffer <$> obj .? "arg0"
-
 instance encodeJsonImageSemantic :: EncodeJson ImageSemantic where
   encodeJson v = case v of
     Depth -> "tag" := "Depth" ~> jsonEmptyObject
@@ -1235,6 +1239,19 @@ instance decodeJsonImageSemantic :: DecodeJson ImageSemantic where
       "Depth" -> pure Depth
       "Stencil" -> pure Stencil
       "Color" -> pure Color
+
+instance encodeJsonImageRef :: EncodeJson ImageRef where
+  encodeJson v = case v of
+    TextureImage arg0 arg1 arg2 -> "tag" := "TextureImage" ~> "arg0" := arg0 ~> "arg1" := arg1 ~> "arg2" := arg2 ~> jsonEmptyObject
+    Framebuffer arg0 -> "tag" := "Framebuffer" ~> "arg0" := arg0 ~> jsonEmptyObject
+
+instance decodeJsonImageRef :: DecodeJson ImageRef where
+  decodeJson json = do
+    obj <- decodeJson json
+    tag <- obj .? "tag"
+    case tag of
+      "TextureImage" -> TextureImage <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2"
+      "Framebuffer" -> Framebuffer <$> obj .? "arg0"
 
 instance encodeJsonClearImage :: EncodeJson ClearImage where
   encodeJson v = case v of
@@ -1292,39 +1309,6 @@ instance decodeJsonCommand :: DecodeJson Command where
       "SaveImage" -> SaveImage <$> obj .? "arg0" <*> obj .? "arg1"
       "LoadImage" -> LoadImage <$> obj .? "arg0" <*> obj .? "arg1"
 
-instance encodeJsonTextureDescriptor :: EncodeJson TextureDescriptor where
-  encodeJson v = case v of
-    TextureDescriptor r ->
-      "tag" := "TextureDescriptor" ~>
-      "textureType" := r.textureType ~>
-      "textureSize" := r.textureSize ~>
-      "textureSemantic" := r.textureSemantic ~>
-      "textureSampler" := r.textureSampler ~>
-      "textureBaseLevel" := r.textureBaseLevel ~>
-      "textureMaxLevel" := r.textureMaxLevel ~>
-      jsonEmptyObject
-
-instance decodeJsonTextureDescriptor :: DecodeJson TextureDescriptor where
-  decodeJson json = do
-    obj <- decodeJson json
-    tag <- obj .? "tag"
-    case tag of
-      "TextureDescriptor" -> do
-        textureType <- obj .? "textureType"
-        textureSize <- obj .? "textureSize"
-        textureSemantic <- obj .? "textureSemantic"
-        textureSampler <- obj .? "textureSampler"
-        textureBaseLevel <- obj .? "textureBaseLevel"
-        textureMaxLevel <- obj .? "textureMaxLevel"
-        pure $ TextureDescriptor
-          { textureType:textureType
-          , textureSize:textureSize
-          , textureSemantic:textureSemantic
-          , textureSampler:textureSampler
-          , textureBaseLevel:textureBaseLevel
-          , textureMaxLevel:textureMaxLevel
-          } 
-
 instance encodeJsonSamplerDescriptor :: EncodeJson SamplerDescriptor where
   encodeJson v = case v of
     SamplerDescriptor r ->
@@ -1368,6 +1352,39 @@ instance decodeJsonSamplerDescriptor :: DecodeJson SamplerDescriptor where
           , samplerMaxLod:samplerMaxLod
           , samplerLodBias:samplerLodBias
           , samplerCompareFunc:samplerCompareFunc
+          } 
+
+instance encodeJsonTextureDescriptor :: EncodeJson TextureDescriptor where
+  encodeJson v = case v of
+    TextureDescriptor r ->
+      "tag" := "TextureDescriptor" ~>
+      "textureType" := r.textureType ~>
+      "textureSize" := r.textureSize ~>
+      "textureSemantic" := r.textureSemantic ~>
+      "textureSampler" := r.textureSampler ~>
+      "textureBaseLevel" := r.textureBaseLevel ~>
+      "textureMaxLevel" := r.textureMaxLevel ~>
+      jsonEmptyObject
+
+instance decodeJsonTextureDescriptor :: DecodeJson TextureDescriptor where
+  decodeJson json = do
+    obj <- decodeJson json
+    tag <- obj .? "tag"
+    case tag of
+      "TextureDescriptor" -> do
+        textureType <- obj .? "textureType"
+        textureSize <- obj .? "textureSize"
+        textureSemantic <- obj .? "textureSemantic"
+        textureSampler <- obj .? "textureSampler"
+        textureBaseLevel <- obj .? "textureBaseLevel"
+        textureMaxLevel <- obj .? "textureMaxLevel"
+        pure $ TextureDescriptor
+          { textureType:textureType
+          , textureSize:textureSize
+          , textureSemantic:textureSemantic
+          , textureSampler:textureSampler
+          , textureBaseLevel:textureBaseLevel
+          , textureMaxLevel:textureMaxLevel
           } 
 
 instance encodeJsonParameter :: EncodeJson Parameter where
