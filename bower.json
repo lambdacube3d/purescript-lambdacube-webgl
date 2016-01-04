@@ -28,7 +28,6 @@
     "purescript-webgl": "^0.9.9",
     "purescript-maps": "^0.5.4",
     "purescript-exceptions" : "^0.3.4",
-    "purescript-refs" : "^0.2.0",
-    "purescript-generics" : "^0.7.0"
+    "purescript-refs" : "^0.2.0"
   }
 }
