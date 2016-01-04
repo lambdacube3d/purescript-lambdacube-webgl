@@ -18,7 +18,7 @@ import Data.Foldable
 import Data.Function
 
 import IR
-import Linear
+import LinearBase
 import Type
 
 comparisonFunctionToGLType :: ComparisonFunction -> GL.GLenum

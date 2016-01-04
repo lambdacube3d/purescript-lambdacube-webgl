@@ -15,7 +15,7 @@ import Data.Traversable
 import Data.Function
 
 import IR
-import Linear
+import LinearBase
 import Type
 import Util
 

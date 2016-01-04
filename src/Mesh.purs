@@ -19,7 +19,7 @@ import Data.Argonaut.Encode (EncodeJson, encodeJson)
 import Data.Argonaut.Decode (DecodeJson, decodeJson)
 
 import IR
-import Linear
+import LinearBase
 import Type
 import Data
 import Input

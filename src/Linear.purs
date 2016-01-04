@@ -1,4 +1,4 @@
-module Linear where
+module LinearBase where
 import Prelude
 import Data.Generic
 

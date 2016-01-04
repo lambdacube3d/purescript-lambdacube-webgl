@@ -28,7 +28,7 @@ import Data.Function
 
 import Type
 import IR
-import Linear
+import LinearBase
 import Util
 import Input
 import Data
