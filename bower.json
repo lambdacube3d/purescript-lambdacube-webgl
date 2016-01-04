@@ -22,7 +22,7 @@
     "url": "git://github.com/lambdacube3d/purescript-lambdacube-webgl.git"
   },
   "dependencies": {
-    "purescript-argonaut-codecs": "^0.5.1",
+    "purescript-argonaut-codecs": "^0.5.0",
     "purescript-console": "^0.1.1",
     "purescript-lists": "^0.7.7",
     "purescript-webgl": "^0.9.9",
