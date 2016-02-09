@@ -288,3 +288,7 @@ edgeModeToGLType a = case a of
     Repeat          -> GL._REPEAT
     MirroredRepeat  -> GL._MIRRORED_REPEAT
     ClampToEdge     -> GL._CLAMP_TO_EDGE
+
+foreign import loadImage_ :: forall a . Fn2 String
+                     (GLImageData -> GFX a)
+                     (GFX Unit)

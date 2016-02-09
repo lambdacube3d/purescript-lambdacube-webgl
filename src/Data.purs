@@ -7,6 +7,7 @@ import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 
 import qualified Graphics.WebGLRaw as GL
+import qualified Graphics.WebGLTexture as GLTex
 import Data.Maybe
 import Data.Tuple
 import Data.Array
@@ -55,3 +56,11 @@ updateBuffer b arrs = do
       when (length a /= d.arrLength) $ throwException $ error "size mismatch"
       setArrayView d.arrView a
       bufferSubDataArrayView GL._ARRAY_BUFFER d.arrOffset d.arrView
+
+uploadTexture2DToGPU :: String -> GFX TextureData
+uploadTexture2DToGPU name = do
+  to <- runFn0 GL.createTexture_
+  runFn2 loadImage_ name \image -> do
+    -- HINT: basic implementation
+    GLTex.handleLoad2D (GLTex.WebGLTex to) GLTex.MIPMAP image
+  return $ TextureData to

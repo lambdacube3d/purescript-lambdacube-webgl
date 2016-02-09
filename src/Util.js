@@ -110,3 +110,10 @@ exports.texImage2DNull_
             {gl.texImage2D(target,level,internalformat,width,height,border,format,type,null);};};};};};};};};};
 
 exports.nullWebGLTexture = null;
+
+exports.loadImage_ = function(name,continuation)
+   {return function()
+    {var i = new Image();
+     i.src = name;
+     i.onload = continuation (i);
+      };};

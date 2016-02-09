@@ -23,6 +23,7 @@ type GFX a = forall e . Eff (webgl :: WebGl, console :: C.CONSOLE, err :: EXCEPT
 
 type IntMap a = Map.Map Int a
 
+foreign import data GLImageData :: *
 foreign import data ArrayBuffer :: *
 foreign import data ArrayView :: *
 
