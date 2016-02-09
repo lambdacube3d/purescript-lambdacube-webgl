@@ -188,8 +188,8 @@ clearRenderTarget values = do
     m <- foldM setClearValue {mask:0,index:0} values
     runFn1 GL.clear_ m.mask
 
-compileProgram :: StrMap.StrMap InputType -> Program -> GFX GLProgram
-compileProgram uniTrie (Program p) = do
+compileProgram :: Program -> GFX GLProgram
+compileProgram (Program p) = do
     po <- runFn0 GL.createProgram_
     let createAndAttach src t = do
           o <- runFn1 GL.createShader_ t
@@ -228,7 +228,7 @@ compileProgram uniTrie (Program p) = do
       return $ Tuple streamName {location: loc, slotAttribute: s.name})
 
     -- drop render textures, keep input textures
-    let texUnis = filter (\n -> StrMap.member n uniTrie) $ StrMap.keys samplerLocation
+    let texUnis = filter (\n -> StrMap.member n p.programUniforms) $ StrMap.keys samplerLocation
     return { program: po
            , shaders: [objV,objF]
            , inputUniforms: uniformLocation
@@ -394,7 +394,7 @@ allocPipeline (Pipeline p) = do
   runFn1 GL.getExtension_ "WEBGL_depth_texture"
   texs <- traverse compileTexture p.textures
   trgs <- traverse (compileRenderTarget p.textures texs) p.targets
-  prgs <- traverse (compileProgram StrMap.empty) p.programs
+  prgs <- traverse compileProgram p.programs
   texUnitMapRefs <- StrMap.fromFoldable <$> traverse (\k -> (Tuple k) <$> newRef 0) (nub $ concatMap (\(Program prg) -> StrMap.keys prg.programInTextures) p.programs)
   input <- newRef Nothing
   curProg <- newRef Nothing
