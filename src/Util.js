@@ -108,3 +108,5 @@ exports.texImage2DNull_
          {return function(type)
            {return function()
             {gl.texImage2D(target,level,internalformat,width,height,border,format,type,null);};};};};};};};};};
+
+exports.nullWebGLTexture = null;

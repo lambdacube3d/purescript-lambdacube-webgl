@@ -163,6 +163,7 @@ data GLUniform
   | UniM22F  AB.Float32Array
   | UniM33F  AB.Float32Array
   | UniM44F  AB.Float32Array
+  | UniFTexture2D (Ref TextureData)
 
 type WebGLPipelineInput =
     { schema        :: PipelineSchema
@@ -203,15 +204,16 @@ type GLStream =
   }
 
 type WebGLPipeline =
-  { targets       :: Array GLRenderTarget
-  , textures      :: Array GLTexture
-  , programs      :: Array GLProgram
-  , commands      :: Array Command
-  , input         :: Ref (Maybe InputConnection)
-  , slotNames     :: Array String
-  , slotPrograms  :: Array (Array ProgramName) -- program list for every slot (programs depend on a slot)
-  , curProgram    :: Ref (Maybe Int)
-  , streams       :: Array GLStream
+  { targets         :: Array GLRenderTarget
+  , textures        :: Array GLTexture
+  , programs        :: Array GLProgram
+  , commands        :: Array Command
+  , input           :: Ref (Maybe InputConnection)
+  , slotNames       :: Array String
+  , slotPrograms    :: Array (Array ProgramName) -- program list for every slot (programs depend on a slot)
+  , curProgram      :: Ref (Maybe Int)
+  , texUnitMapping  :: StrMap.StrMap (Ref Int)
+  , streams         :: Array GLStream
   }
 
 type GLTexture =
@@ -230,6 +232,7 @@ type GLProgram =
   , inputUniforms :: StrMap.StrMap GL.WebGLUniformLocation
   , inputSamplers :: StrMap.StrMap GL.WebGLUniformLocation
   , inputStreams  :: StrMap.StrMap {location :: GL.GLint, slotAttribute :: String}
+  , inputTextureUniforms :: Array String
   }
 
 data GLObjectCommand
@@ -238,7 +241,9 @@ data GLObjectCommand
     | GLDrawElements            GL.GLenum GL.GLsizei GL.GLenum GL.WebGLBuffer GL.GLintptr -- mode count type buffer indicesPtr
     | GLSetVertexAttrib         GL.GLuint (Stream Buffer) -- index value
     | GLSetUniform              GL.WebGLUniformLocation GLUniform
---    | GLBindTexture             !GLenum (IORef GLint) GLUniform               -- binds the texture from the gluniform to the specified texture unit and target
+    | GLBindTexture             GL.GLenum (Ref GL.GLenum) GLUniform -- binds the texture from the gluniform to the specified texture unit
+
+data TextureData = TextureData GL.WebGLTexture
 
 type SetterFun a = a -> GFX Unit
 
@@ -259,6 +264,8 @@ data InputSetter
     | SM22F  (SetterFun M22F)
     | SM33F  (SetterFun M33F)
     | SM44F  (SetterFun M44F)
+    -- float textures
+    | SFTexture2D (SetterFun TextureData)
 
 streamToStreamType :: forall a . Stream a -> StreamType
 streamToStreamType s = case s of

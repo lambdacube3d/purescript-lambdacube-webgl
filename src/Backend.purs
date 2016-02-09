@@ -227,7 +227,15 @@ compileProgram uniTrie (Program p) = do
       C.log $ "attrib location " ++ streamName ++" " ++ show loc
       return $ Tuple streamName {location: loc, slotAttribute: s.name})
 
-    return {program: po, shaders: [objV,objF], inputUniforms: uniformLocation, inputSamplers:samplerLocation, inputStreams: streamLocation}
+    -- drop render textures, keep input textures
+    let texUnis = filter (\n -> StrMap.member n uniTrie) $ StrMap.keys samplerLocation
+    return { program: po
+           , shaders: [objV,objF]
+           , inputUniforms: uniformLocation
+           , inputSamplers:samplerLocation
+           , inputStreams: streamLocation
+           , inputTextureUniforms: texUnis
+           }
 
 foreign import nullWebGLFramebuffer :: GL.WebGLFramebuffer
 
@@ -334,7 +342,7 @@ compileStreamData (StreamData s) = do
     , program: fromJust $ head $ s.streamPrograms
     }
 
-createStreamCommands :: {-StrMap.StrMap (RefVal GL.GLint)-}{} -> StrMap.StrMap GLUniform -> StrMap.StrMap (Stream Buffer) -> Primitive -> GLProgram -> Array GLObjectCommand
+createStreamCommands :: StrMap.StrMap (Ref Int) -> StrMap.StrMap GLUniform -> StrMap.StrMap (Stream Buffer) -> Primitive -> GLProgram -> Array GLObjectCommand
 createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `append` streamCmds `append` [drawCmd]
   where
     -- object draw command
@@ -348,19 +356,16 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
 
     -- object uniform commands
     -- texture slot setup commands
-    streamUniCmds = uniCmds -- `append` texCmds
+    streamUniCmds = uniCmds `append` texCmds
       where
         uniMap  = List.fromList $ StrMap.toList prg.inputUniforms
+        topUni n = StrMap.unsafeIndex topUnis n
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ topUnis `StrMap.unsafeIndex` n
-        {-
-        texUnis = S.toList $ inputTextureUniforms prg
-        texCmds = [ GLBindTexture (inputTypeToTextureTarget $ uniInputType u) texUnit u
-                  | n <- texUnis
-                  , let u = T.lookupWithDefault (topUni n) n objUnis
-                  , let texUnit = T.lookupWithDefault (error "internal error (createObjectCommands - Texture Unit)") n texUnitMap
-                  ]
-        uniInputType (GLUniform ty _) = ty
-        -}
+        texCmds = flip map prg.inputTextureUniforms $ \n ->
+          let u = topUni n
+              texUnit = StrMap.unsafeIndex texUnitMap n
+              txTarget = GL._TEXTURE_2D -- TODO
+          in GLBindTexture txTarget texUnit u
 
     -- object attribute stream commands
     streamCmds = flip map (List.fromList $ StrMap.values prg.inputStreams) $ \is -> let
@@ -390,6 +395,7 @@ allocPipeline (Pipeline p) = do
   texs <- traverse compileTexture p.textures
   trgs <- traverse (compileRenderTarget p.textures texs) p.targets
   prgs <- traverse (compileProgram StrMap.empty) p.programs
+  texUnitMapRefs <- StrMap.fromFoldable <$> traverse (\k -> (Tuple k) <$> newRef 0) (nub $ concatMap (\(Program prg) -> StrMap.keys prg.programInTextures) p.programs)
   input <- newRef Nothing
   curProg <- newRef Nothing
   strms <- traverse compileStreamData p.streams
@@ -402,6 +408,7 @@ allocPipeline (Pipeline p) = do
     , slotPrograms: map (\(Slot a) -> a.slotPrograms) p.slots
     , slotNames: map (\(Slot a) -> a.slotName) p.slots
     , curProgram: curProg
+    , texUnitMapping: texUnitMapRefs
     , streams: strms
     }
 
@@ -424,12 +431,18 @@ renderPipeline p = do
             Nothing -> return unit
             Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
         -}
+
+
       SetSamplerUniform n tu -> do
         readRef p.curProgram >>= \cp -> case cp of
           Nothing -> throwException $ error "invalid pipeline, no active program"
           Just progIdx -> case StrMap.lookup n (p.programs `unsafeIndex` progIdx).inputSamplers of
             Nothing -> throwException $ error "internal error (SetSamplerUniform)!"
-            Just i  -> runFn2 GL.uniform1i_ i tu
+            Just i  -> case StrMap.lookup n p.texUnitMapping of
+              Nothing -> throwException $ error "internal error (SetSamplerUniform)!"
+              Just ref -> do
+                writeRef ref tu
+                runFn2 GL.uniform1i_ i tu
 
       SetTexture tu i -> do
         runFn1 GL.activeTexture_ (GL._TEXTURE0 + tu)
@@ -488,16 +501,11 @@ renderSlot cmds = do
     GLSetUniform idx uni -> do
       --log "GLSetUniform"
       setUniform idx uni
-{-
-        GLBindTexture txTarget tuRef (GLUniform _ ref)  -> do
-                                                            txObjVal <- readIORef ref
-                                                            -- HINT: ugly and hacky
-                                                            with txObjVal $ \txObjPtr -> do
-                                                                txObj <- peek $ castPtr txObjPtr :: IO GLuint
-                                                                texUnit <- readIORef tuRef
-                                                                glActiveTexture $ gl_TEXTURE0 + fromIntegral texUnit
-                                                                glBindTexture txTarget txObj
--}
+    GLBindTexture txTarget tuRef (UniFTexture2D ref) -> do
+      TextureData txObj <- readRef ref
+      texUnit <- readRef tuRef
+      runFn1 GL.activeTexture_ $ GL._TEXTURE0 + texUnit
+      runFn2 GL.bindTexture_ txTarget txObj
 
 disposePipeline :: WebGLPipeline -> GFX Unit
 disposePipeline p = do
@@ -560,8 +568,7 @@ setPipelineInput p input' = do
                         generate command program vector => for each dependent program:
                             generate object commands
             -}
-            let texUnitMap = {} --TODO: glTexUnitMapping p
-                topUnis = input.uniformSetup
+            let topUnis = input.uniformSetup
                 emptyV  = replicate (length p.programs) []
                 extend v = case shouldExtend of
                     Nothing -> v
@@ -569,10 +576,10 @@ setPipelineInput p input' = do
             for_ (zip pToI p.slotPrograms) $ \(Tuple slotIdx prgs) -> do
                 slot <- readRef $ input.slotVector `unsafeIndex` slotIdx
                 for_ (Map.values slot.objectMap) $ \obj -> do
-                    let updateCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands texUnitMap topUnis obj (p.programs `unsafeIndex` prgIdx)) v
+                    let updateCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands p.texUnitMapping topUnis obj (p.programs `unsafeIndex` prgIdx)) v
                         cmdV = foldl updateCmds emptyV prgs
                     modifyRef obj.commands $ \v -> fromJust $ updateAt idx cmdV (extend v)
 
             -- generate stream commands
             for_ p.streams $ \s -> do
-              writeRef s.commands $ createStreamCommands texUnitMap topUnis s.attributes s.primitive (p.programs `unsafeIndex` s.program)
+              writeRef s.commands $ createStreamCommands p.texUnitMapping topUnis s.attributes s.primitive (p.programs `unsafeIndex` s.program)

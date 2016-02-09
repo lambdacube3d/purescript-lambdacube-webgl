@@ -23,6 +23,8 @@ import IR
 import LinearBase
 import Util
 
+import qualified Graphics.WebGLRaw as GL
+
 -- API
 schemaFromPipeline :: IR.Pipeline -> GFX PipelineSchema
 schemaFromPipeline (IR.Pipeline ppl) = do
@@ -123,7 +125,7 @@ addObject input slotName prim indices attribs uniformNames = do
                     return []   -- this slot is not used in that pipeline
                 Just pSlotIdx -> do
                     let emptyV = replicate (length p.programs) []
-                        addCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands {-(glTexUnitMapping p)-}{} input.uniformSetup obj (p.programs `unsafeIndex` prgIdx)) v
+                        addCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands p.texUnitMapping input.uniformSetup obj (p.programs `unsafeIndex` prgIdx)) v
                     return $ foldl addCmds emptyV $ p.slotPrograms `unsafeIndex` pSlotIdx
     writeRef cmdsRef cmds
     return obj
@@ -243,7 +245,12 @@ uniformM44F n is = case StrMap.lookup n is of
   Just (SM44F fun) -> fun
   _ -> nullSetter n "M44F"
 
-createObjectCommands :: {} -> {-Trie (IORef GLint) -> -}StrMap.StrMap GLUniform -> GLObject -> GLProgram -> Array GLObjectCommand
+uniformFTexture2D :: String -> StrMap.StrMap InputSetter -> SetterFun TextureData
+uniformFTexture2D n is = case StrMap.lookup n is of
+  Just (SFTexture2D fun) -> fun
+  _ -> nullSetter n "FTexture2D"
+
+createObjectCommands :: StrMap.StrMap (Ref Int) -> StrMap.StrMap GLUniform -> GLObject -> GLProgram -> Array GLObjectCommand
 createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamCmds, [objDrawCmd]]
   where
     -- object draw command
@@ -263,21 +270,20 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
 
     -- object uniform commands
     -- texture slot setup commands
-    objUniCmds = uniCmds -- `append` texCmds
+    objUniCmds = uniCmds `append` texCmds
       where
+        topUni n = StrMap.unsafeIndex topUnis n
         uniMap  = List.fromList $ StrMap.toList prg.inputUniforms
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ case StrMap.lookup n obj.uniSetup of
           Nothing -> topUnis `StrMap.unsafeIndex` n
           Just u  -> u
-        {-
-        texUnis = S.toList $ inputTextureUniforms prg
-        texCmds = [ GLBindTexture (inputTypeToTextureTarget $ uniInputType u) texUnit u
-                  | n <- texUnis
-                  , let u = T.lookupWithDefault (topUni n) n objUnis
-                  , let texUnit = T.lookupWithDefault (error "internal error (createObjectCommands - Texture Unit)") n texUnitMap
-                  ]
-        uniInputType (GLUniform ty _) = ty
-        -}
+        texCmds = flip map prg.inputTextureUniforms $ \n ->
+          let u = case StrMap.lookup n obj.uniSetup of
+                    Nothing -> topUni n
+                    Just a -> a
+              texUnit = StrMap.unsafeIndex texUnitMap n
+              txTarget = GL._TEXTURE_2D -- TODO
+          in GLBindTexture txTarget texUnit u
 
     -- object attribute stream commands
     objStreamCmds = flip map (List.fromList $ StrMap.values prg.inputStreams) $ \is -> let

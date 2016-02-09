@@ -71,6 +71,7 @@ toStreamType a = case a of
 
 foreign import setFloatArray :: AB.Float32Array -> Array Float -> GFX Unit
 foreign import setIntArray :: AB.Int32Array -> Array Int -> GFX Unit
+foreign import nullWebGLTexture :: GL.WebGLTexture
 
 mkUniformSetter :: InputType -> GFX (Tuple GLUniform InputSetter)
 mkUniformSetter t@Bool  = let r = TA.asInt32Array [0]                in return $ Tuple (UniBool  r) (SBool  $ setIntArray r <<< toIntArray)
@@ -88,6 +89,9 @@ mkUniformSetter t@V4F   = let r = TA.asFloat32Array (replicate 4 0.0)  in return
 mkUniformSetter t@M22F  = let r = TA.asFloat32Array (replicate 4 0.0)  in return $ Tuple (UniM22F  r) (SM22F  $ setFloatArray r <<< toArray)
 mkUniformSetter t@M33F  = let r = TA.asFloat32Array (replicate 9 0.0)  in return $ Tuple (UniM33F  r) (SM33F  $ setFloatArray r <<< toArray)
 mkUniformSetter t@M44F  = let r = TA.asFloat32Array (replicate 16 0.0) in return $ Tuple (UniM44F  r) (SM44F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@FTexture2D = do
+  r <- newRef (TextureData nullWebGLTexture)
+  return $ Tuple (UniFTexture2D r) (SFTexture2D $ writeRef r)
 
 primitiveToFetchPrimitive :: Primitive -> FetchPrimitive
 primitiveToFetchPrimitive prim = case prim of
@@ -161,6 +165,7 @@ setUniform i uni = case uni of
   UniM22F  r -> runFn3 GL.uniformMatrix2fv_ i false r
   UniM33F  r -> runFn3 GL.uniformMatrix3fv_ i false r
   UniM44F  r -> runFn3 GL.uniformMatrix4fv_ i false r
+  UniFTexture2D r -> return unit
   _ -> throwException $ error "internal error (setUniform)!"
 
 primitiveToGLType :: Primitive -> GL.GLenum
