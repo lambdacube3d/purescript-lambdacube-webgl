@@ -1,8 +1,8 @@
 module Util where
 
 import Prelude
-import qualified Control.Monad.Eff.Console as C
-import qualified Graphics.WebGLRaw as GL
+import Control.Monad.Eff.Console as C
+import Graphics.WebGLRaw as GL
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Ref
@@ -11,11 +11,14 @@ import Data.Tuple
 import Data.Maybe
 import Data.Array
 import Data.List (List(..))
-import qualified Data.ArrayBuffer.Types as AB
-import qualified Data.TypedArray as TA
+import Data.Unfoldable (replicate)
+import Data.ArrayBuffer.Types as AB
+import Data.TypedArray as TA
 import Math
 import Data.Foldable
 import Data.Function
+import Data.Function.Uncurried
+import Partial.Unsafe (unsafeCrashWith)
 
 import IR
 import LinearBase
@@ -60,13 +63,13 @@ blendingFactorToGLType a = case a of
 
 toStreamType :: InputType -> GFX StreamType
 toStreamType a = case a of
-  Float -> return TFloat
-  V2F   -> return TV2F
-  V3F   -> return TV3F
-  V4F   -> return TV4F
-  M22F  -> return TM22F
-  M33F  -> return TM33F
-  M44F  -> return TM44F
+  Float -> pure TFloat
+  V2F   -> pure TV2F
+  V3F   -> pure TV3F
+  V4F   -> pure TV4F
+  M22F  -> pure TM22F
+  M33F  -> pure TM33F
+  M44F  -> pure TM44F
   _     -> throwException $ error "invalid Stream Type"
 
 foreign import setFloatArray :: AB.Float32Array -> Array Float -> GFX Unit
@@ -74,24 +77,25 @@ foreign import setIntArray :: AB.Int32Array -> Array Int -> GFX Unit
 foreign import nullWebGLTexture :: GL.WebGLTexture
 
 mkUniformSetter :: InputType -> GFX (Tuple GLUniform InputSetter)
-mkUniformSetter t@Bool  = let r = TA.asInt32Array [0]                in return $ Tuple (UniBool  r) (SBool  $ setIntArray r <<< toIntArray)
-mkUniformSetter t@V2B   = let r = TA.asInt32Array (replicate 2 0)    in return $ Tuple (UniV2B   r) (SV2B   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@V3B   = let r = TA.asInt32Array (replicate 3 0)    in return $ Tuple (UniV3B   r) (SV3B   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@V4B   = let r = TA.asInt32Array (replicate 4 0)    in return $ Tuple (UniV4B   r) (SV4B   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@Int   = let r = TA.asInt32Array [0]                in return $ Tuple (UniInt   r) (SInt   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@V2I   = let r = TA.asInt32Array (replicate 2 0)    in return $ Tuple (UniV2I   r) (SV2I   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@V3I   = let r = TA.asInt32Array (replicate 3 0)    in return $ Tuple (UniV3I   r) (SV3I   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@V4I   = let r = TA.asInt32Array (replicate 4 0)    in return $ Tuple (UniV4I   r) (SV4I   $ setIntArray r <<< toIntArray)
-mkUniformSetter t@Float = let r = TA.asFloat32Array [0.0]              in return $ Tuple (UniFloat r) (SFloat $ setFloatArray r <<< toArray)
-mkUniformSetter t@V2F   = let r = TA.asFloat32Array (replicate 2 0.0)  in return $ Tuple (UniV2F   r) (SV2F   $ setFloatArray r <<< toArray)
-mkUniformSetter t@V3F   = let r = TA.asFloat32Array (replicate 3 0.0)  in return $ Tuple (UniV3F   r) (SV3F   $ setFloatArray r <<< toArray)
-mkUniformSetter t@V4F   = let r = TA.asFloat32Array (replicate 4 0.0)  in return $ Tuple (UniV4F   r) (SV4F   $ setFloatArray r <<< toArray)
-mkUniformSetter t@M22F  = let r = TA.asFloat32Array (replicate 4 0.0)  in return $ Tuple (UniM22F  r) (SM22F  $ setFloatArray r <<< toArray)
-mkUniformSetter t@M33F  = let r = TA.asFloat32Array (replicate 9 0.0)  in return $ Tuple (UniM33F  r) (SM33F  $ setFloatArray r <<< toArray)
-mkUniformSetter t@M44F  = let r = TA.asFloat32Array (replicate 16 0.0) in return $ Tuple (UniM44F  r) (SM44F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@Bool  = let r = TA.asInt32Array [0]                in pure $ Tuple (UniBool  r) (SBool  $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V2B   = let r = TA.asInt32Array (replicate 2 0)    in pure $ Tuple (UniV2B   r) (SV2B   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V3B   = let r = TA.asInt32Array (replicate 3 0)    in pure $ Tuple (UniV3B   r) (SV3B   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V4B   = let r = TA.asInt32Array (replicate 4 0)    in pure $ Tuple (UniV4B   r) (SV4B   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@Int   = let r = TA.asInt32Array [0]                in pure $ Tuple (UniInt   r) (SInt   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V2I   = let r = TA.asInt32Array (replicate 2 0)    in pure $ Tuple (UniV2I   r) (SV2I   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V3I   = let r = TA.asInt32Array (replicate 3 0)    in pure $ Tuple (UniV3I   r) (SV3I   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@V4I   = let r = TA.asInt32Array (replicate 4 0)    in pure $ Tuple (UniV4I   r) (SV4I   $ setIntArray r <<< toIntArray)
+mkUniformSetter t@Float = let r = TA.asFloat32Array [0.0]              in pure $ Tuple (UniFloat r) (SFloat $ setFloatArray r <<< toArray)
+mkUniformSetter t@V2F   = let r = TA.asFloat32Array (replicate 2 0.0)  in pure $ Tuple (UniV2F   r) (SV2F   $ setFloatArray r <<< toArray)
+mkUniformSetter t@V3F   = let r = TA.asFloat32Array (replicate 3 0.0)  in pure $ Tuple (UniV3F   r) (SV3F   $ setFloatArray r <<< toArray)
+mkUniformSetter t@V4F   = let r = TA.asFloat32Array (replicate 4 0.0)  in pure $ Tuple (UniV4F   r) (SV4F   $ setFloatArray r <<< toArray)
+mkUniformSetter t@M22F  = let r = TA.asFloat32Array (replicate 4 0.0)  in pure $ Tuple (UniM22F  r) (SM22F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@M33F  = let r = TA.asFloat32Array (replicate 9 0.0)  in pure $ Tuple (UniM33F  r) (SM33F  $ setFloatArray r <<< toArray)
+mkUniformSetter t@M44F  = let r = TA.asFloat32Array (replicate 16 0.0) in pure $ Tuple (UniM44F  r) (SM44F  $ setFloatArray r <<< toArray)
 mkUniformSetter t@FTexture2D = do
   r <- newRef (TextureData nullWebGLTexture)
-  return $ Tuple (UniFTexture2D r) (SFTexture2D $ writeRef r)
+  pure $ Tuple (UniFTexture2D r) (SFTexture2D $ writeRef r)
+mkUniformSetter _ = unsafeCrashWith "mkUniformSetter"
 
 primitiveToFetchPrimitive :: Primitive -> FetchPrimitive
 primitiveToFetchPrimitive prim = case prim of
@@ -106,7 +110,7 @@ primitiveToFetchPrimitive prim = case prim of
 unlines :: Array String -> String
 unlines l = case uncons l of
   Nothing -> ""
-  Just a  -> if null a.tail then a.head else a.head ++ "\n" ++ unlines a.tail
+  Just a  -> if null a.tail then a.head else a.head <> "\n" <> unlines a.tail
 
 setVertexAttrib :: GL.GLuint -> Stream Buffer -> GFX Unit
 setVertexAttrib i val = case val of
@@ -129,43 +133,43 @@ setVertexAttrib i val = case val of
   _ -> throwException $ error "internal error (setVertexAttrib)!"
 
 setAFloat :: GL.GLuint -> Float -> GFX Unit
-setAFloat i v = runFn2 GL.vertexAttrib1f_ i v
+setAFloat i v = GL.vertexAttrib1f_ i v
 
 setAV2F :: GL.GLuint -> V2F -> GFX Unit
-setAV2F i (V2 x y) = runFn3 GL.vertexAttrib2f_ i x y
+setAV2F i (V2 x y) = GL.vertexAttrib2f_ i x y
 
 setAV3F :: GL.GLuint -> V3F -> GFX Unit
-setAV3F i (V3 x y z) = runFn4 GL.vertexAttrib3f_ i x y z
+setAV3F i (V3 x y z) = GL.vertexAttrib3f_ i x y z
 
 setAV4F :: GL.GLuint -> V4F -> GFX Unit
-setAV4F i (V4 x y z w) = runFn5 GL.vertexAttrib4f_ i x y z w
+setAV4F i (V4 x y z w) = GL.vertexAttrib4f_ i x y z w
 
 {-
 foreign import uniform1iv_:: forall eff. Fn2 WebGLUniformLocation
                                              Int32Array
                                              (Eff (webgl :: WebGl | eff) Unit)
 
-  | uni.uType == _FLOAT_VEC4    = runFn2 uniform4fv_ uni.uLocation (asArrayBuffer value)
+  | uni.uType == _FLOAT_VEC4    = uniform4fv_ uni.uLocation (asArrayBuffer value)
 -}
 -- sets value based uniforms only (does not handle textures)
 --setUniform :: forall a . GL.WebGLUniformLocation -> GLUniform -> GFX Unit
 setUniform i uni = case uni of
-  UniBool  r -> runFn2 GL.uniform1iv_ i r
-  UniV2B   r -> runFn2 GL.uniform2iv_ i r
-  UniV3B   r -> runFn2 GL.uniform3iv_ i r
-  UniV4B   r -> runFn2 GL.uniform4iv_ i r
-  UniInt   r -> runFn2 GL.uniform1iv_ i r
-  UniV2I   r -> runFn2 GL.uniform2iv_ i r
-  UniV3I   r -> runFn2 GL.uniform3iv_ i r
-  UniV4I   r -> runFn2 GL.uniform4iv_ i r
-  UniFloat r -> runFn2 GL.uniform1fv_ i r
-  UniV2F   r -> runFn2 GL.uniform2fv_ i r
-  UniV3F   r -> runFn2 GL.uniform3fv_ i r
-  UniV4F   r -> runFn2 GL.uniform4fv_ i r
-  UniM22F  r -> runFn3 GL.uniformMatrix2fv_ i false r
-  UniM33F  r -> runFn3 GL.uniformMatrix3fv_ i false r
-  UniM44F  r -> runFn3 GL.uniformMatrix4fv_ i false r
-  UniFTexture2D r -> return unit
+  UniBool  r -> GL.uniform1iv_ i r
+  UniV2B   r -> GL.uniform2iv_ i r
+  UniV3B   r -> GL.uniform3iv_ i r
+  UniV4B   r -> GL.uniform4iv_ i r
+  UniInt   r -> GL.uniform1iv_ i r
+  UniV2I   r -> GL.uniform2iv_ i r
+  UniV3I   r -> GL.uniform3iv_ i r
+  UniV4I   r -> GL.uniform4iv_ i r
+  UniFloat r -> GL.uniform1fv_ i r
+  UniV2F   r -> GL.uniform2fv_ i r
+  UniV3F   r -> GL.uniform3fv_ i r
+  UniV4F   r -> GL.uniform4fv_ i r
+  UniM22F  r -> GL.uniformMatrix2fv_ i false r
+  UniM33F  r -> GL.uniformMatrix3fv_ i false r
+  UniM44F  r -> GL.uniformMatrix4fv_ i false r
+  UniFTexture2D r -> pure unit
   _ -> throwException $ error "internal error (setUniform)!"
 
 primitiveToGLType :: Primitive -> GL.GLenum
@@ -201,7 +205,7 @@ foreign import bufferSubDataArrayView :: forall eff. GL.GLenum -> GL.GLintptr ->
 
 compileTexture :: TextureDescriptor -> GFX GLTexture
 compileTexture (TextureDescriptor txD) = do
-  to <- runFn0 GL.createTexture_
+  to <- GL.createTexture_
   let div a b = floor $ a / b
       mipSize 0 x = [x]
       mipSize n x = x : mipSize (n-1) (x / 2)
@@ -210,49 +214,51 @@ compileTexture (TextureDescriptor txD) = do
       txSetup txTarget dTy = do
           internalFormat  <- textureDataTypeToGLType txD.textureSemantic dTy
           dataFormat      <- textureDataTypeToGLArityType txD.textureSemantic dTy
-          runFn2 GL.bindTexture_ txTarget to
+          GL.bindTexture_ txTarget to
           setTextureSamplerParameters txTarget txD.textureSampler
-          return $ Tuple internalFormat dataFormat
+          pure $ Tuple internalFormat dataFormat
   let act = case txD.textureType of
         Texture2D dTy 1 -> do
-            let txTarget = GL._TEXTURE_2D
-            VV2U (V2 txW txH) <- return txD.textureSize
+          let txTarget = GL._TEXTURE_2D
+          case txD.textureSize of
+           VV2U (V2 txW txH) -> do
             Tuple internalFormat dataFormat <- txSetup txTarget dTy
             for_ (zip levels (zip (mipS txW) (mipS txH))) $ \(Tuple l (Tuple w h)) -> do
               texImage2DNull_ txTarget l internalFormat w h 0 dataFormat (if dataFormat == GL._DEPTH_COMPONENT then GL._UNSIGNED_SHORT else GL._UNSIGNED_BYTE)
-              return unit
-            return $
+              pure unit
+            pure $
               { textureObject: to
               , textureTarget: GL._TEXTURE_2D --target
               }
+           _ -> unsafeCrashWith "compileTexture"
         _ -> throwException $ error "Unsupported texture type!"
   act
 
 textureDataTypeToGLType :: ImageSemantic -> TextureDataType -> GFX GL.GLenum
 textureDataTypeToGLType Color a = case a of
-    FloatT RGBA -> return GL._RGBA
-    IntT   RGBA -> return GL._RGBA
-    WordT  RGBA -> return GL._RGBA
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+    FloatT RGBA -> pure GL._RGBA
+    IntT   RGBA -> pure GL._RGBA
+    WordT  RGBA -> pure GL._RGBA
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
 textureDataTypeToGLType Depth a = case a of
-    FloatT Red  -> return GL._DEPTH_COMPONENT
-    WordT  Red  -> return GL._DEPTH_COMPONENT
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+    FloatT Red  -> pure GL._DEPTH_COMPONENT
+    WordT  Red  -> pure GL._DEPTH_COMPONENT
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
 textureDataTypeToGLType Stencil a = case a of
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
 
 textureDataTypeToGLArityType :: ImageSemantic -> TextureDataType -> GFX GL.GLenum
 textureDataTypeToGLArityType Color a = case a of
-    FloatT RGBA -> return GL._RGBA
-    IntT   RGBA -> return GL._RGBA
-    WordT  RGBA -> return GL._RGBA
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+    FloatT RGBA -> pure GL._RGBA
+    IntT   RGBA -> pure GL._RGBA
+    WordT  RGBA -> pure GL._RGBA
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
 textureDataTypeToGLArityType Depth a = case a of
-    FloatT Red  -> return GL._DEPTH_COMPONENT
-    WordT  Red  -> return GL._DEPTH_COMPONENT
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+    FloatT Red  -> pure GL._DEPTH_COMPONENT
+    WordT  Red  -> pure GL._DEPTH_COMPONENT
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
 textureDataTypeToGLArityType Stencil a = case a of
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" ++ show a
+    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
 
 foreign import texImage2DNull_
     :: GL.GLenum->
@@ -267,12 +273,12 @@ foreign import texImage2DNull_
 
 setTextureSamplerParameters :: GL.GLenum -> SamplerDescriptor -> GFX Unit
 setTextureSamplerParameters t (SamplerDescriptor s) = do
-    runFn3 GL.texParameteri_ t GL._TEXTURE_WRAP_S $ edgeModeToGLType s.samplerWrapS
+    GL.texParameteri_ t GL._TEXTURE_WRAP_S $ edgeModeToGLType s.samplerWrapS
     case s.samplerWrapT of
-        Nothing -> return unit
-        Just a  -> runFn3 GL.texParameteri_ t GL._TEXTURE_WRAP_T $ edgeModeToGLType a
-    runFn3 GL.texParameteri_ t GL._TEXTURE_MIN_FILTER $ filterToGLType s.samplerMinFilter
-    runFn3 GL.texParameteri_ t GL._TEXTURE_MAG_FILTER $ filterToGLType s.samplerMagFilter
+        Nothing -> pure unit
+        Just a  -> GL.texParameteri_ t GL._TEXTURE_WRAP_T $ edgeModeToGLType a
+    GL.texParameteri_ t GL._TEXTURE_MIN_FILTER $ filterToGLType s.samplerMinFilter
+    GL.texParameteri_ t GL._TEXTURE_MAG_FILTER $ filterToGLType s.samplerMagFilter
 
 filterToGLType :: Filter -> GL.GLenum
 filterToGLType a = case a of
@@ -288,6 +294,7 @@ edgeModeToGLType a = case a of
     Repeat          -> GL._REPEAT
     MirroredRepeat  -> GL._MIRRORED_REPEAT
     ClampToEdge     -> GL._CLAMP_TO_EDGE
+    _ -> unsafeCrashWith "edgeModeToGLType"
 
 foreign import loadImage_ :: forall a . Fn2 String
                      (GLImageData -> GFX a)

@@ -4,19 +4,21 @@ import Prelude
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 
-import qualified Data.StrMap as StrMap
+import Data.StrMap as StrMap
 import Data.Maybe
-import Data.Maybe.Unsafe (fromJust)
+import Data.Maybe (fromJust)
 import Data.Array
 import Data.Tuple
 import Data.Int
-import qualified Data.List as List
+import Data.List as List
 
-import Data.Argonaut.Combinators ((~>), (:=), (.?))
+import Data.Argonaut.Encode.Combinators ((~>), (:=))
+import Data.Argonaut.Decode.Combinators ((.?))
 import Data.Argonaut.Core (jsonEmptyObject)
 import Data.Argonaut.Printer (printJson)
-import Data.Argonaut.Encode (EncodeJson, encodeJson)
-import Data.Argonaut.Decode (DecodeJson, decodeJson)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 
 import IR
 import LinearBase
@@ -73,22 +75,22 @@ addMesh input slotName (Mesh mesh) objUniNames = case mesh.gpuData of
       addObject input slotName g.primitive g.indices (StrMap.fromList $ List.filter filterStream $ StrMap.toList g.streams) objUniNames
 
 compileMesh :: Mesh -> GFX Mesh
-compileMesh (Mesh mesh) = case mesh.gpuData of
-  Just _ -> return $ Mesh mesh
+compileMesh (Mesh mesh) = unsafePartial $ case mesh.gpuData of
+  Just _ -> pure $ Mesh mesh
   Nothing -> do
     let mkIndexBuf v = do
             iBuf <- compileBuffer [Array ArrWord16 (toArray v)]
-            return $ Just {buffer: iBuf, arrIdx: 0, start: 0, length: length v}
-    vBuf <- compileBuffer $ map meshAttrToArray $ List.fromList (StrMap.values mesh.attributes)
+            pure $ Just {buffer: iBuf, arrIdx: 0, start: 0, length: length v}
+    vBuf <- compileBuffer $ map meshAttrToArray $ List.toUnfoldable (StrMap.values mesh.attributes)
     Tuple prim indices <- case mesh.primitive of
-        P_Points            -> return $ Tuple PointList     Nothing
-        P_TriangleStrip     -> return $ Tuple TriangleStrip Nothing
-        P_Triangles         -> return $ Tuple TriangleList  Nothing
+        P_Points            -> pure $ Tuple PointList     Nothing
+        P_TriangleStrip     -> pure $ Tuple TriangleStrip Nothing
+        P_Triangles         -> pure $ Tuple TriangleList  Nothing
         P_TriangleStripI v  -> Tuple TriangleStrip <$> mkIndexBuf v
         P_TrianglesI v      -> Tuple TriangleList <$> mkIndexBuf v
     let streams = StrMap.fromList $ List.zipWith (\i (Tuple n a) -> Tuple n (meshAttrToStream vBuf i a)) (List.range 0 $ fromJust $ fromNumber $ StrMap.size mesh.attributes) (StrMap.toList mesh.attributes)
         gpuData = {primitive: prim, streams: streams, indices: indices}
-    return $ Mesh $ mesh {gpuData = Just gpuData}
+    pure $ Mesh $ mesh {gpuData = Just gpuData}
 
 meshAttrToArray :: MeshAttribute -> LCArray
 meshAttrToArray a = case a of
@@ -132,6 +134,7 @@ instance decodeJsonMeshPrimitive :: DecodeJson MeshPrimitive where
       "P_Triangles"       -> pure P_Triangles
       "P_TriangleStripI"  -> P_TriangleStripI <$> obj .? "values"
       "P_TrianglesI"      -> P_TrianglesI <$> obj .? "values"
+      _ -> unsafeCrashWith "decodeJson @ MeshPrimitive"
 
 instance decodeJsonMeshAttribute :: DecodeJson MeshAttribute where
   decodeJson json = do
@@ -145,6 +148,7 @@ instance decodeJsonMeshAttribute :: DecodeJson MeshAttribute where
       "A_M22F"  -> A_Flat AT_M22F  <$> obj .? "values"
       "A_M33F"  -> A_Flat AT_M33F  <$> obj .? "values"
       "A_M44F"  -> A_Flat AT_M44F  <$> obj .? "values"
+      _ -> unsafeCrashWith "decodeJson @ MeshAttribute"
 
 instance decodeJsonMesh :: DecodeJson Mesh where
   decodeJson json = do

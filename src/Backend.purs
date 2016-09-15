@@ -1,12 +1,12 @@
 module Backend where
 
 import Prelude
-import qualified Control.Monad.Eff.Console as C
-import Data.Maybe.Unsafe (fromJust)
-import Data.Array.Unsafe (unsafeIndex)
+import Control.Monad.Eff.Console as C
+import Data.Maybe (fromJust)
+import Data.Array.Partial (unsafeIndex)
 import Data.Int.Bits
 
-import qualified Graphics.WebGLRaw as GL
+import Graphics.WebGLRaw as GL
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.WebGL
 import Control.Monad.Eff.Ref
@@ -15,16 +15,18 @@ import Control.Monad
 import Control.Bind
 import Data.Foldable
 import Data.Traversable
-import qualified Data.StrMap as StrMap
-import qualified Data.StrMap.Unsafe as StrMap
-import qualified Data.Map as Map
+import Data.StrMap as StrMap
+import Data.StrMap.Unsafe as StrMap
+import Data.Map as Map
 import Data.Tuple
 import Data.Int
 import Data.Maybe
-import Data.Maybe.Unsafe
 import Data.Array
-import qualified Data.List as List
+import Data.List as List
 import Data.Function
+import Data.Function.Uncurried
+import Data.Unfoldable (replicate, replicateA)
+import Partial.Unsafe (unsafePartial, unsafeCrashWith)
 
 import Type
 import IR
@@ -50,7 +52,7 @@ setupRasterContext = cvt
 
     setPointSize :: PointSize -> GFX Unit
     setPointSize ps = case ps of
-        ProgramPointSize    -> return unit
+        ProgramPointSize    -> pure unit
         PointSize s         -> C.error "PointSize is not supported!"
 
     cvt :: RasterContext -> GFX Unit
@@ -64,21 +66,21 @@ setupRasterContext = cvt
         -}
 
     cvt (LineCtx lw pv) = do
-        runFn1 GL.lineWidth_ lw
+        GL.lineWidth_ lw
         --setProvokingVertex pv
 
     cvt (TriangleCtx cm pm po pv) = do
         -- cull mode
         case cm of
-            CullNone    -> runFn1 GL.disable_ GL._CULL_FACE
+            CullNone    -> GL.disable_ GL._CULL_FACE
             CullFront f -> do
-                runFn1 GL.enable_    GL._CULL_FACE
-                runFn1 GL.cullFace_  GL._FRONT
-                runFn1 GL.frontFace_ $ cff f
+                GL.enable_    GL._CULL_FACE
+                GL.cullFace_  GL._FRONT
+                GL.frontFace_ $ cff f
             CullBack f -> do
-                runFn1 GL.enable_    GL._CULL_FACE
-                runFn1 GL.cullFace_  GL._BACK
-                runFn1 GL.frontFace_ $ cff f
+                GL.enable_    GL._CULL_FACE
+                GL.cullFace_  GL._BACK
+                GL.frontFace_ $ cff f
 
         -- polygon mode
         -- not presented
@@ -95,18 +97,18 @@ setupRasterContext = cvt
         -- polygon offset
         -- not presented: glDisable gl_POLYGON_OFFSET_POINT
         -- not presented: glDisable gl_POLYGON_OFFSET_LINE
-        runFn1 GL.disable_ GL._POLYGON_OFFSET_FILL
+        GL.disable_ GL._POLYGON_OFFSET_FILL
         case po of
-            NoOffset -> return unit
+            NoOffset -> pure unit
             Offset f u -> do
-                runFn2 GL.polygonOffset_ f u
-                runFn1 GL.enable_ GL._POLYGON_OFFSET_FILL
+                GL.polygonOffset_ f u
+                GL.enable_ GL._POLYGON_OFFSET_FILL
 
         -- provoking vertex
         -- not presented: setProvokingVertex pv
 
 setupAccumulationContext :: AccumulationContext -> GFX Unit
-setupAccumulationContext (AccumulationContext {accViewportName = n, accOperations = ops}) = cvt ops
+setupAccumulationContext (AccumulationContext {accViewportName: n, accOperations: ops}) = cvt ops
   where
     cvt :: List.List FragmentOperation -> GFX Unit
     cvt (List.Cons (StencilOp a b c) (List.Cons (DepthOp f m) xs)) = do
@@ -117,18 +119,18 @@ setupAccumulationContext (AccumulationContext {accViewportName = n, accOperation
         cvtC 0 xs
     cvt (List.Cons (DepthOp df dm) xs) = do
         -- TODO
-        runFn1 GL.disable_ GL._STENCIL_TEST
+        GL.disable_ GL._STENCIL_TEST
         let glDF = comparisonFunctionToGLType df
         case glDF == comparisonFunctionToGLType Always && dm == false of
-            true    -> runFn1 GL.disable_ GL._DEPTH_TEST
+            true    -> GL.disable_ GL._DEPTH_TEST
             false   -> do
-                runFn1 GL.enable_ GL._DEPTH_TEST
-                runFn1 GL.depthFunc_ glDF
-                runFn1 GL.depthMask_ dm
+                GL.enable_ GL._DEPTH_TEST
+                GL.depthFunc_ glDF
+                GL.depthMask_ dm
         cvtC 0 xs
     cvt xs = do 
-        runFn1 GL.disable_ GL._DEPTH_TEST
-        runFn1 GL.disable_ GL._STENCIL_TEST
+        GL.disable_ GL._DEPTH_TEST
+        GL.disable_ GL._STENCIL_TEST
         cvtC 0 xs
 
     cvtC :: Int -> List.List FragmentOperation -> GFX Unit
@@ -138,98 +140,99 @@ setupAccumulationContext (AccumulationContext {accViewportName = n, accOperation
             NoBlending -> do
                 -- FIXME: requires GL 3.1
                 --glDisablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
-                runFn1 GL.disable_ GL._BLEND -- workaround
+                GL.disable_ GL._BLEND -- workaround
                 -- not presented: GL.disable_ GL._COLOR_LOGIC_OP
             BlendLogicOp op -> do
-                runFn1 GL.disable_ GL._BLEND
+                GL.disable_ GL._BLEND
                 -- not presented: GL.enable_  GL._COLOR_LOGIC_OP
                 -- not presented: GL.logicOp_ $ logicOperationToGLType op
                 C.log "not presented: BlendLogicOp"
             Blend blend -> do
-                V4 r g b a <- return blend.color
+                V4 r g b a <- pure blend.color
                 -- not presented: glDisable gl_COLOR_LOGIC_OP
                 -- FIXME: requires GL 3.1
                 --glEnablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
-                runFn1 GL.enable_ GL._BLEND -- workaround
-                runFn2 GL.blendEquationSeparate_ (blendEquationToGLType blend.colorEqSrc) (blendEquationToGLType blend.alphaEqSrc)
-                runFn4 GL.blendColor_ r g b a
-                runFn4 GL.blendFuncSeparate_ (blendingFactorToGLType blend.colorFSrc) (blendingFactorToGLType blend.colorFDst)
+                GL.enable_ GL._BLEND -- workaround
+                GL.blendEquationSeparate_ (blendEquationToGLType blend.colorEqSrc) (blendEquationToGLType blend.alphaEqSrc)
+                GL.blendColor_ r g b a
+                GL.blendFuncSeparate_ (blendingFactorToGLType blend.colorFSrc) (blendingFactorToGLType blend.colorFDst)
                                              (blendingFactorToGLType blend.alphaFSrc) (blendingFactorToGLType blend.alphaFDst)
         case m of
-          VBool r           -> runFn4 GL.colorMask_ r true true true
-          VV2B (V2 r g)     -> runFn4 GL.colorMask_ r g true true
-          VV3B (V3 r g b)   -> runFn4 GL.colorMask_ r g b true
-          VV4B (V4 r g b a) -> runFn4 GL.colorMask_ r g b a
-          _                 -> runFn4 GL.colorMask_ true true true true
+          VBool r           -> GL.colorMask_ r true true true
+          VV2B (V2 r g)     -> GL.colorMask_ r g true true
+          VV3B (V3 r g b)   -> GL.colorMask_ r g b true
+          VV4B (V4 r g b a) -> GL.colorMask_ r g b a
+          _                 -> GL.colorMask_ true true true true
         cvtC (i + 1) xs
-    cvtC _ List.Nil = return unit
+    cvtC i (List.Cons _ xs) = unsafeCrashWith "setupAccumulationContext"
+    cvtC _ List.Nil = pure unit
 
 
 clearRenderTarget :: Array ClearImage -> GFX Unit
 clearRenderTarget values = do
     let setClearValue {mask:m,index:i} (ClearImage val) = case val of
-            {imageSemantic = Depth, clearValue = VFloat v} -> do
-                runFn1 GL.depthMask_ true
-                runFn1 GL.clearDepth_ v
-                return {mask:m .|. GL._DEPTH_BUFFER_BIT, index:i}
-            {imageSemantic = Stencil, clearValue = VWord v} -> do
-                runFn1 GL.clearStencil_ v
-                return {mask:m .|. GL._STENCIL_BUFFER_BIT, index:i}
-            {imageSemantic = Color, clearValue = c} -> do
+            {imageSemantic: Depth, clearValue: VFloat v} -> do
+                GL.depthMask_ true
+                GL.clearDepth_ v
+                pure {mask:m .|. GL._DEPTH_BUFFER_BIT, index:i}
+            {imageSemantic: Stencil, clearValue: VWord v} -> do
+                GL.clearStencil_ v
+                pure {mask:m .|. GL._STENCIL_BUFFER_BIT, index:i}
+            {imageSemantic: Color, clearValue: c} -> do
                 case c of
-                  VFloat r            -> runFn4 GL.clearColor_ r 0.0 0.0 1.0
-                  VV2F (V2 r g)       -> runFn4 GL.clearColor_ r g 0.0 1.0
-                  VV3F (V3 r g b)     -> runFn4 GL.clearColor_ r g b 1.0
-                  VV4F (V4 r g b a)   -> runFn4 GL.clearColor_ r g b a
-                  _                   -> runFn4 GL.clearColor_ 0.0 0.0 0.0 1.0
-                runFn4 GL.colorMask_ true true true true
-                return {mask:m .|. GL._COLOR_BUFFER_BIT, index:i+1}
+                  VFloat r            -> GL.clearColor_ r 0.0 0.0 1.0
+                  VV2F (V2 r g)       -> GL.clearColor_ r g 0.0 1.0
+                  VV3F (V3 r g b)     -> GL.clearColor_ r g b 1.0
+                  VV4F (V4 r g b a)   -> GL.clearColor_ r g b a
+                  _                   -> GL.clearColor_ 0.0 0.0 0.0 1.0
+                GL.colorMask_ true true true true
+                pure {mask:m .|. GL._COLOR_BUFFER_BIT, index:i+1}
             _ -> throwException $ error "internal error (clearRenderTarget)"
     m <- foldM setClearValue {mask:0,index:0} values
-    runFn1 GL.clear_ m.mask
+    GL.clear_ m.mask
 
 compileProgram :: Program -> GFX GLProgram
 compileProgram (Program p) = do
-    po <- runFn0 GL.createProgram_
+    po <- GL.createProgram_
     let createAndAttach src t = do
-          o <- runFn1 GL.createShader_ t
-          runFn2 GL.shaderSource_ o src
-          runFn1 GL.compileShader_ o
-          logStr <- runFn1 GL.getShaderInfoLog_ o
+          o <- GL.createShader_ t
+          GL.shaderSource_ o src
+          GL.compileShader_ o
+          logStr <- GL.getShaderInfoLog_ o
           C.log logStr
-          status <- runFn2 GL.getShaderParameter_ o GL._COMPILE_STATUS
+          status <- GL.getShaderParameter_ o GL._COMPILE_STATUS
           when (status /= true) $ throwException $ error "compileShader failed!"
-          runFn2 GL.attachShader_ po o
+          GL.attachShader_ po o
           --putStr "    + compile shader source: " >> printGLStatus
-          return o
+          pure o
 
     objV <- createAndAttach p.vertexShader GL._VERTEX_SHADER
     objF <- createAndAttach p.fragmentShader GL._FRAGMENT_SHADER
 
-    runFn1 GL.linkProgram_ po
-    prgLog <- runFn1 GL.getProgramInfoLog_ po
+    GL.linkProgram_ po
+    prgLog <- GL.getProgramInfoLog_ po
     C.log prgLog
 
     -- check link status
-    status <- runFn2 GL.getProgramParameter_ po GL._LINK_STATUS
+    status <- GL.getProgramParameter_ po GL._LINK_STATUS
     when (status /= true) $ throwException $ error "link program failed!"
 
     uniformLocation <- StrMap.fromList <$> for (StrMap.toList p.programUniforms) (\(Tuple uniName uniType) -> do
-      loc <- runFn2 GL.getUniformLocation_ po uniName
-      return $ Tuple uniName loc)
+      loc <- GL.getUniformLocation_ po uniName
+      pure $ Tuple uniName loc)
 
     samplerLocation <- StrMap.fromList <$> for (StrMap.toList p.programInTextures) (\(Tuple uniName uniType) -> do
-      loc <- runFn2 GL.getUniformLocation_ po uniName
-      return $ Tuple uniName loc)
+      loc <- GL.getUniformLocation_ po uniName
+      pure $ Tuple uniName loc)
 
     streamLocation <- StrMap.fromList <$> for (StrMap.toList p.programStreams) (\(Tuple streamName (Parameter s)) -> do
-      loc <- runFn2 GL.getAttribLocation_ po streamName
-      C.log $ "attrib location " ++ streamName ++" " ++ show loc
-      return $ Tuple streamName {location: loc, slotAttribute: s.name})
+      loc <- GL.getAttribLocation_ po streamName
+      C.log $ "attrib location " <> streamName <>" " <> show loc
+      pure $ Tuple streamName {location: loc, slotAttribute: s.name})
 
     -- drop render textures, keep input textures
     let texUnis = filter (\n -> StrMap.member n p.programUniforms) $ StrMap.keys samplerLocation
-    return { program: po
+    pure { program: po
            , shaders: [objV,objF]
            , inputUniforms: uniformLocation
            , inputSamplers:samplerLocation
@@ -240,7 +243,7 @@ compileProgram (Program p) = do
 foreign import nullWebGLFramebuffer :: GL.WebGLFramebuffer
 
 compileRenderTarget :: Array TextureDescriptor -> Array GLTexture -> RenderTarget -> GFX GLRenderTarget
-compileRenderTarget texs glTexs (RenderTarget rt) = do
+compileRenderTarget texs glTexs (RenderTarget rt) = unsafePartial $ do
   let targets = rt.renderTargets
       isFB (Framebuffer _)    = true
       isFB _                  = false
@@ -250,25 +253,25 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
               let isColor Color = true
                   isColor _ = false
                   cvt (TargetItem a) = case a.targetRef of
-                      Nothing                     -> return GL._NONE
-                      Just (Framebuffer Color)    -> return GL._BACK
+                      Nothing                     -> pure GL._NONE
+                      Just (Framebuffer Color)    -> pure GL._BACK
                       _                           -> throwException $ error "internal error (compileRenderTarget)!"
               bufs <- traverse cvt $ filter (\(TargetItem a) -> isColor a.targetSemantic) targets
-              return $
+              pure $
                   { framebufferObject: nullWebGLFramebuffer
                   , framebufferDrawbuffers: Just bufs
                   }
           false -> do
               when (any isFB images) $ throwException $ error "internal error (compileRenderTarget)!"
-              fbo <- runFn0 GL.createFramebuffer_
-              runFn2 GL.bindFramebuffer_ GL._FRAMEBUFFER fbo
+              fbo <- GL.createFramebuffer_
+              GL.bindFramebuffer_ GL._FRAMEBUFFER fbo
               let attach attachment (TextureImage texIdx level Nothing) = do
                       let glTex = glTexs `unsafeIndex` texIdx
                           tex = texs `unsafeIndex` texIdx
                           txLevel = level
                           txTarget = glTex.textureTarget
                           txObj = glTex.textureObject
-                          attach2D = runFn5 GL.framebufferTexture2D_ GL._FRAMEBUFFER attachment txTarget txObj txLevel
+                          attach2D = GL.framebufferTexture2D_ GL._FRAMEBUFFER attachment txTarget txObj txLevel
                           act0 = case tex of
                             TextureDescriptor t -> case t.textureType of
                               Texture2D     _ 1 -> attach2D
@@ -277,54 +280,54 @@ compileRenderTarget texs glTexs (RenderTarget rt) = do
                   attach _ _ = throwException $ error "invalid texture format!"
                   go a (TargetItem {targetSemantic:Stencil, targetRef:Just img}) = do
                       throwException $ error "Stencil support is not implemented yet!"
-                      return a
+                      pure a
                   go a (TargetItem {targetSemantic: Depth,targetRef: Just img}) = do
                       attach GL._DEPTH_ATTACHMENT img
-                      return a
+                      pure a
                   go (Tuple bufs colorIdx) (TargetItem {targetSemantic: Color,targetRef: Just img}) = do
                       let attachment = GL._COLOR_ATTACHMENT0
                       attach attachment img
-                      return (Tuple (attachment : bufs) (colorIdx + 1))
-                  go (Tuple bufs colorIdx) (TargetItem {targetSemantic: Color,targetRef: Nothing}) = return (Tuple (GL._NONE : bufs) (colorIdx + 1))
-                  go a _ = return a
+                      pure (Tuple (attachment : bufs) (colorIdx + 1))
+                  go (Tuple bufs colorIdx) (TargetItem {targetSemantic: Color,targetRef: Nothing}) = pure (Tuple (GL._NONE : bufs) (colorIdx + 1))
+                  go a _ = pure a
               (Tuple bufs _) <- foldM go (Tuple [] 0) targets
-              return $
+              pure $
                   { framebufferObject: fbo
                   , framebufferDrawbuffers: Nothing
                   }
   act1
 
 compileStreamData :: StreamData -> GFX GLStream
-compileStreamData (StreamData s) = do
+compileStreamData (StreamData s) = unsafePartial $ do
   let compileAttr (VFloatArray v) = Array ArrFloat v
       compileAttr (VIntArray v) = Array ArrInt16 $ toArray v
       compileAttr (VWordArray v) = Array ArrWord16 $ toArray v
       --TODO: compileAttr (VBoolArray v) = Array ArrWord32 (length v) (withV withArray v)
-  Tuple indexMap arrays <- return $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(fromJust $ fromNumber $ StrMap.size s.streamData -1.0)) $ List.fromList $ StrMap.toList s.streamData
+  Tuple indexMap arrays <- pure $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(fromJust $ fromNumber $ StrMap.size s.streamData -1.0)) $ List.toUnfoldable $ StrMap.toList s.streamData
   let getLength n = do
         l <- case StrMap.lookup n s.streamData of
-            Just (VFloatArray v) -> return $ length v
-            Just (VIntArray v) -> return $ length v
-            Just (VWordArray v) -> return $ length v
+            Just (VFloatArray v) -> pure $ length v
+            Just (VIntArray v) -> pure $ length v
+            Just (VWordArray v) -> pure $ length v
             _ -> throwException $ error "compileStreamData - getLength"
         c <- case StrMap.lookup n s.streamType of
-            Just Float  -> return 1
-            Just V2F    -> return 2
-            Just V3F    -> return 3
-            Just V4F    -> return 4
-            Just M22F   -> return 4
-            Just M33F   -> return 9
-            Just M44F   -> return 16
+            Just Float  -> pure 1
+            Just V2F    -> pure 2
+            Just V3F    -> pure 3
+            Just V4F    -> pure 4
+            Just M22F   -> pure 4
+            Just M33F   -> pure 9
+            Just M44F   -> pure 16
             _ -> throwException $ error "compileStreamData - getLength element count"
-        return $ l / c
+        pure $ l / c
   buffer <- compileBuffer arrays
   cmdRef <- newRef []
   let toStream (Tuple n i) = do
         t <- toStreamType =<< case StrMap.lookup n s.streamType of
-          Just a -> return  a
+          Just a -> pure  a
           Nothing -> throwException $ error "compileStreamData - toStream"
         l <- getLength n
-        return $ Tuple n (Stream
+        pure $ Tuple n (Stream
           { sType:  t
           , buffer: buffer
           , arrIdx: i
@@ -332,13 +335,13 @@ compileStreamData (StreamData s) = do
           , length: l
           })
   strms <- traverse toStream indexMap
-  return
+  pure
     { commands: cmdRef
     , primitive: case s.streamPrimitive of
         Points    -> PointList
         Lines     -> LineList
         Triangles -> TriangleList
-    , attributes: StrMap.fromList $ List.toList strms
+    , attributes: StrMap.fromList $ List.fromFoldable strms
     , program: fromJust $ head $ s.streamPrograms
     }
 
@@ -352,13 +355,13 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
         streamLen a = case a of
           Stream s  -> [s.length]
           _         -> []
-        count = (concatMap streamLen $ List.fromList $ StrMap.values attrs) `unsafeIndex` 0
+        count = unsafePartial $ (concatMap streamLen $ List.toUnfoldable $ StrMap.values attrs) `unsafeIndex` 0
 
     -- object uniform commands
     -- texture slot setup commands
-    streamUniCmds = uniCmds `append` texCmds
+    streamUniCmds = unsafePartial $ uniCmds `append` texCmds
       where
-        uniMap  = List.fromList $ StrMap.toList prg.inputUniforms
+        uniMap  = List.toUnfoldable $ StrMap.toList prg.inputUniforms
         topUni n = StrMap.unsafeIndex topUnis n
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ topUnis `StrMap.unsafeIndex` n
         texCmds = flip map prg.inputTextureUniforms $ \n ->
@@ -368,7 +371,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
           in GLBindTexture txTarget texUnit u
 
     -- object attribute stream commands
-    streamCmds = flip map (List.fromList $ StrMap.values prg.inputStreams) $ \is -> let
+    streamCmds = unsafePartial $ flip map (List.toUnfoldable $ StrMap.values prg.inputStreams) $ \is -> let
         s = attrs `StrMap.unsafeIndex` is.slotAttribute
         i = is.location
       in case s of
@@ -391,7 +394,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
   -- enable extensions
-  runFn1 GL.getExtension_ "WEBGL_depth_texture"
+  GL.getExtension_ "WEBGL_depth_texture"
   texs <- traverse compileTexture p.textures
   trgs <- traverse (compileRenderTarget p.textures texs) p.targets
   prgs <- traverse compileProgram p.programs
@@ -399,7 +402,7 @@ allocPipeline (Pipeline p) = do
   input <- newRef Nothing
   curProg <- newRef Nothing
   strms <- traverse compileStreamData p.streams
-  return
+  pure
     { targets: trgs
     , textures: texs
     , programs: prgs
@@ -413,22 +416,22 @@ allocPipeline (Pipeline p) = do
     }
 
 renderPipeline :: WebGLPipeline -> GFX Unit
-renderPipeline p = do
+renderPipeline p = unsafePartial $ do
   writeRef p.curProgram Nothing
   for_ p.commands $ \cmd -> case cmd of
       SetRenderTarget i -> do
         let rt = p.targets `unsafeIndex` i
         ic' <- readRef p.input
         case ic' of
-            Nothing -> return unit
+            Nothing -> pure unit
             Just (InputConnection ic) -> do
                         V2 w h <- readRef ic.input.screenSize
-                        runFn4 GL.viewport_ 0 0 w h
+                        GL.viewport_ 0 0 w h
         -- TODO: set FBO target viewport
-        runFn2 GL.bindFramebuffer_ GL._FRAMEBUFFER rt.framebufferObject
+        GL.bindFramebuffer_ GL._FRAMEBUFFER rt.framebufferObject
         {-
         case bufs of
-            Nothing -> return unit
+            Nothing -> pure unit
             Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
         -}
 
@@ -442,12 +445,12 @@ renderPipeline p = do
               Nothing -> throwException $ error "internal error (SetSamplerUniform)!"
               Just ref -> do
                 writeRef ref tu
-                runFn2 GL.uniform1i_ i tu
+                GL.uniform1i_ i tu
 
       SetTexture tu i -> do
-        runFn1 GL.activeTexture_ (GL._TEXTURE0 + tu)
+        GL.activeTexture_ (GL._TEXTURE0 + tu)
         let tx = p.textures `unsafeIndex` i
-        runFn2 GL.bindTexture_ tx.textureTarget tx.textureObject
+        GL.bindTexture_ tx.textureTarget tx.textureObject
       SetRasterContext rCtx -> do
         --log "SetRasterContext"
         setupRasterContext rCtx
@@ -458,45 +461,45 @@ renderPipeline p = do
         --log "ClearRenderTarget"
         clearRenderTarget t
       SetProgram i -> do
-        --log $ "SetProgram " ++ show i
+        --log $ "SetProgram " <> show i
         writeRef p.curProgram (Just i)
-        runFn1 GL.useProgram_ $ (p.programs `unsafeIndex` i).program
+        GL.useProgram_ $ (p.programs `unsafeIndex` i).program
       RenderStream streamIdx -> do
         renderSlot =<< readRef (p.streams `unsafeIndex` streamIdx).commands
       RenderSlot slotIdx -> do
-        --log $ "RenderSlot " ++ show slotIdx
+        --log $ "RenderSlot " <> show slotIdx
         readRef p.curProgram >>= \cp -> case cp of
           Nothing -> throwException $ error "invalid pipeline, no active program"
           Just progIdx -> readRef p.input >>= \input -> case input of
-              Nothing -> return unit
+              Nothing -> pure unit
               Just (InputConnection ic) -> do
                 s <- readRef (ic.input.slotVector `unsafeIndex` (ic.slotMapPipelineToInput `unsafeIndex` slotIdx))
-                --log $ "#" ++ show (length s.sortedObjects)
+                --log $ "#" <> show (length s.sortedObjects)
                 for_ s.sortedObjects $ \(Tuple _ obj) -> do
                   enabled <- readRef obj.enabled
                   when enabled $ do
                     cmd <- readRef obj.commands
                     renderSlot $ (cmd `unsafeIndex` ic.id) `unsafeIndex` progIdx
-      _ -> return unit
+      _ -> pure unit
 
 renderSlot :: Array GLObjectCommand -> GFX Unit
 renderSlot cmds = do
   for_ cmds $ \cmd -> case cmd of
     GLSetVertexAttribArray idx buf size typ ptr -> do
-      --log $ "GLSetVertexAttribArray " ++ show [idx,size,ptr]
-      runFn2 GL.bindBuffer_ GL._ARRAY_BUFFER buf
-      runFn1 GL.enableVertexAttribArray_ idx
-      runFn6 GL.vertexAttribPointer_ idx size typ false 0 ptr
+      --log $ "GLSetVertexAttribArray " <> show [idx,size,ptr]
+      GL.bindBuffer_ GL._ARRAY_BUFFER buf
+      GL.enableVertexAttribArray_ idx
+      GL.vertexAttribPointer_ idx size typ false 0 ptr
     GLDrawArrays mode first count -> do
-      --log $ "GLDrawArrays " ++ show [first,count]
-      runFn3 GL.drawArrays_ mode first count
+      --log $ "GLDrawArrays " <> show [first,count]
+      GL.drawArrays_ mode first count
     GLDrawElements mode count typ buf indicesPtr -> do
       --log "GLDrawElements"
-      runFn2 GL.bindBuffer_ GL._ELEMENT_ARRAY_BUFFER buf
-      runFn4 GL.drawElements_ mode count typ indicesPtr
+      GL.bindBuffer_ GL._ELEMENT_ARRAY_BUFFER buf
+      GL.drawElements_ mode count typ indicesPtr
     GLSetVertexAttrib idx val -> do
-      --log $ "GLSetVertexAttrib " ++ show idx
-      runFn1 GL.disableVertexAttribArray_ idx
+      --log $ "GLSetVertexAttrib " <> show idx
+      GL.disableVertexAttribArray_ idx
       setVertexAttrib idx val
     GLSetUniform idx uni -> do
       --log "GLSetUniform"
@@ -504,15 +507,16 @@ renderSlot cmds = do
     GLBindTexture txTarget tuRef (UniFTexture2D ref) -> do
       TextureData txObj <- readRef ref
       texUnit <- readRef tuRef
-      runFn1 GL.activeTexture_ $ GL._TEXTURE0 + texUnit
-      runFn2 GL.bindTexture_ txTarget txObj
+      GL.activeTexture_ $ GL._TEXTURE0 + texUnit
+      GL.bindTexture_ txTarget txObj
+    _ -> unsafeCrashWith "renderSlot"
 
 disposePipeline :: WebGLPipeline -> GFX Unit
 disposePipeline p = do
   setPipelineInput p Nothing
   for_ p.programs $ \prg -> do
-      runFn1 GL.deleteProgram_ prg.program
-      traverse_ (runFn1 GL.deleteShader_) prg.shaders
+      GL.deleteProgram_ prg.program
+      traverse_ (GL.deleteShader_) prg.shaders
   {- TODO: targets, textures
   let targets = glTargets p
   withArray (map framebufferObject $ V.toList targets) $ (glDeleteFramebuffers $ fromIntegral $ V.length targets)
@@ -522,11 +526,11 @@ disposePipeline p = do
   -}
 
 setPipelineInput :: WebGLPipeline -> Maybe WebGLPipelineInput -> GFX Unit
-setPipelineInput p input' = do
+setPipelineInput p input' = unsafePartial $ do
     -- TODO: check matching input schema
     ic' <- readRef p.input
     case ic' of
-        Nothing -> return unit
+        Nothing -> pure unit
         Just (InputConnection ic) -> do
             modifyRef ic.input.pipelines $ \v -> fromJust $ updateAt ic.id Nothing v
             for_ ic.slotMapPipelineToInput $ \slotIdx -> do
@@ -549,14 +553,14 @@ setPipelineInput p input' = do
                     -- we don't have empty space, hence we double the vector size
                     let len = length oldPipelineV
                     modifyRef input.pipelines $ \v -> fromJust $ updateAt len (Just p) (concat [v,replicate len Nothing])
-                    return $ Tuple len (Just len)
+                    pure $ Tuple len (Just len)
                 Just i -> do
                     modifyRef input.pipelines $ \v -> fromJust $ updateAt i (Just p) v
-                    return $ Tuple i Nothing
+                    pure $ Tuple i Nothing
             -- create input connection
             pToI <- for p.slotNames $ \n -> case StrMap.lookup n input.slotMap of
               Nothing -> throwException $ error "internal error: unknown slot name in input"
-              Just i -> return i
+              Just i -> pure i
             let iToP = foldr (\(Tuple i v) p -> fromJust $ updateAt v (Just i) p) (replicate (fromJust $ fromNumber $ StrMap.size input.slotMap) Nothing) (zip (0..length pToI) pToI)
             writeRef p.input $ Just $ InputConnection {id: idx, input: input, slotMapPipelineToInput: pToI, slotMapInputToPipeline: iToP}
 

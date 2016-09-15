@@ -2,19 +2,19 @@ module Type where
 
 import Prelude
 import Control.Monad.Eff
-import qualified Control.Monad.Eff.Console as C
+import Control.Monad.Eff.Console as C
 import Control.Monad.Eff.Ref
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.WebGL
-import qualified Data.StrMap as StrMap
-import qualified Graphics.WebGLRaw as GL
+import Data.StrMap as StrMap
+import Graphics.WebGLRaw as GL
 
-import qualified Data.Map as Map
+import Data.Map as Map
 import Data.Tuple
 import Data.Maybe
 import Data.Array
 import Data.Int
-import qualified Data.ArrayBuffer.Types as AB
+import Data.ArrayBuffer.Types as AB
 
 import IR
 import LinearBase

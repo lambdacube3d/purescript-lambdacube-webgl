@@ -1,19 +1,20 @@
 module Data where
 
 import Prelude
-import qualified Control.Monad.Eff.Console as C
+import Control.Monad.Eff.Console as C
 import Control.Monad
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 
-import qualified Graphics.WebGLRaw as GL
-import qualified Graphics.WebGLTexture as GLTex
+import Graphics.WebGLRaw as GL
+import Graphics.WebGLTexture as GLTex
 import Data.Maybe
 import Data.Tuple
 import Data.Array
 import Data.Foldable
 import Data.Traversable
 import Data.Function
+import Data.Function.Uncurried
 
 import IR
 import LinearBase
@@ -38,14 +39,14 @@ compileBuffer arrs = do
             ArrFloat  -> newFloatView
       view <- newView b o len
       setArrayView view a
-      return {arrType: t, arrLength: len, arrOffset: o, arrSize: bytes, arrView: view}
+      pure {arrType: t, arrLength: len, arrOffset: o, arrSize: bytes, arrView: view}
 
-    bo <- runFn0 GL.createBuffer_
-    runFn2 GL.bindBuffer_ GL._ARRAY_BUFFER bo
+    bo <- GL.createBuffer_
+    GL.bindBuffer_ GL._ARRAY_BUFFER bo
     bufferDataAlloc GL._ARRAY_BUFFER size GL._STATIC_DRAW
     bufferSubDataArrayBuffer GL._ARRAY_BUFFER 0 b
-    runFn2 GL.bindBuffer_ GL._ARRAY_BUFFER nullWebGLBuffer
-    return {arrays: descs, glBuffer: bo, buffer: b}
+    GL.bindBuffer_ GL._ARRAY_BUFFER nullWebGLBuffer
+    pure {arrays: descs, glBuffer: bo, buffer: b}
 
 updateBuffer :: Buffer -> Array (Tuple Int LCArray) -> GFX Unit
 updateBuffer b arrs = do
@@ -59,7 +60,7 @@ updateBuffer b arrs = do
 
 uploadTexture2DToGPU :: String -> (TextureData -> GFX Unit) -> GFX Unit
 uploadTexture2DToGPU name action = do
-  to <- runFn0 GL.createTexture_
+  to <- GL.createTexture_
   runFn2 loadImage_ name \image -> do
     -- HINT: basic implementation
     GLTex.handleLoad2D (GLTex.WebGLTex to) GLTex.MIPMAP image

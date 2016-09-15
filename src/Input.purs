@@ -1,39 +1,41 @@
 module Input where
 
 import Prelude
-import Data.Array.Unsafe (unsafeIndex)
+import Data.Array.Partial (unsafeIndex)
 import Control.Bind
 import Control.Monad
 import Control.Monad.Eff
 import Control.Monad.Eff.Ref
 import Control.Monad.Eff.Exception
-import qualified Data.Map as Map
-import qualified Data.StrMap as StrMap
-import qualified Data.StrMap.Unsafe as StrMap
+import Data.Map as Map
+import Data.StrMap as StrMap
+import Data.StrMap.Unsafe as StrMap
 import Data.Foldable
 import Data.Traversable
 import Data.Maybe
-import Data.Maybe.Unsafe (fromJust)
+--import Data.Maybe.Unsafe (fromJust)
 import Data.Tuple
 import Data.Array
 import Data.Int
-import qualified Data.List as List
+import Data.List as List
+import Data.Unfoldable (replicate, replicateA)
+import Partial.Unsafe (unsafePartial)
 import Type
 import IR
 import LinearBase
 import Util
 
-import qualified Graphics.WebGLRaw as GL
+import Graphics.WebGLRaw as GL
 
 -- API
-schemaFromPipeline :: IR.Pipeline -> GFX PipelineSchema
-schemaFromPipeline (IR.Pipeline ppl) = do
-  sl <- for ppl.slots $ \(IR.Slot s) -> do
+schemaFromPipeline :: Pipeline -> GFX PipelineSchema
+schemaFromPipeline (Pipeline ppl) = do
+  sl <- for ppl.slots $ \(Slot s) -> do
     a <- traverse toStreamType s.slotStreams
-    return $ Tuple s.slotName {primitive: s.slotPrimitive, attributes: a}
+    pure $ Tuple s.slotName {primitive: s.slotPrimitive, attributes: a}
   let ul = map (\(Slot s) -> s.slotUniforms) ppl.slots
-  return $
-    { slots: StrMap.fromList $ List.toList sl
+  pure $
+    { slots: StrMap.fromList $ List.fromFoldable sl
     , uniforms: foldl StrMap.union (StrMap.empty :: StrMap.StrMap InputType) ul
     }
 
@@ -41,20 +43,20 @@ mkUniform :: Array (Tuple String InputType) -> GFX (Tuple (StrMap.StrMap InputSe
 mkUniform l = do
   unisAndSetters <- for l $ \(Tuple n t) -> do
     (Tuple uni setter) <- mkUniformSetter t
-    return $ Tuple (Tuple n uni) (Tuple n setter)
-  let fun (Tuple unis setters) = Tuple (StrMap.fromList $ List.toList setters) (StrMap.fromList $ List.toList unis)
-  return $ fun $ unzip unisAndSetters
+    pure $ Tuple (Tuple n uni) (Tuple n setter)
+  let fun (Tuple unis setters) = Tuple (StrMap.fromList $ List.fromFoldable setters) (StrMap.fromList $ List.fromFoldable unis)
+  pure $ fun $ unzip unisAndSetters
 
 mkWebGLPipelineInput :: PipelineSchema -> GFX WebGLPipelineInput
-mkWebGLPipelineInput sch = do
-  let sm = StrMap.fromList $ List.zip (List.toList $ StrMap.keys sch.slots) (List.range 0 len)
+mkWebGLPipelineInput sch = unsafePartial $ do
+  let sm = StrMap.fromList $ List.zip (List.fromFoldable $ StrMap.keys sch.slots) (List.range 0 len)
       len = fromJust $ fromNumber $ StrMap.size sch.slots
-  Tuple setters unis <- mkUniform $ List.fromList $ StrMap.toList sch.uniforms
-  slotV <- replicateM len $ newRef {objectMap: Map.empty :: Map.Map Int GLObject, sortedObjects: [], orderJob: Ordered}
+  Tuple setters unis <- mkUniform $ List.toUnfoldable $ StrMap.toList sch.uniforms
+  slotV <- replicateA len $ newRef {objectMap: Map.empty :: Map.Map Int GLObject, sortedObjects: [], orderJob: Ordered}
   seed <- newRef 0
   size <- newRef (V2 0 0)
   ppls <- newRef [Nothing]
-  return $
+  pure $
     { schema        : sch
     , slotMap       : sm
     , slotVector    : slotV
@@ -66,18 +68,18 @@ mkWebGLPipelineInput sch = do
     }
 
 addObject :: WebGLPipelineInput -> String -> Primitive -> Maybe (IndexStream Buffer) -> StrMap.StrMap (Stream Buffer) -> Array String -> GFX GLObject
-addObject input slotName prim indices attribs uniformNames = do
+addObject input slotName prim indices attribs uniformNames = unsafePartial $ do
     for_ uniformNames $ \n -> case StrMap.lookup n input.schema.uniforms of
-        Nothing -> throwException $ error $ "Unknown uniform: " ++ show n
-        _ -> return unit
+        Nothing -> throwException $ error $ "Unknown uniform: " <> show n
+        _ -> pure unit
     case StrMap.lookup slotName input.schema.slots of
-        Nothing -> throwException $ error $ "Unknown slot: " ++ slotName
+        Nothing -> throwException $ error $ "Unknown slot: " <> slotName
         Just slotSchema -> do
             when (slotSchema.primitive /= (primitiveToFetchPrimitive prim)) $ throwException $ error $
-                "Primitive mismatch for slot (" ++ show slotName ++ ") expected " ++ show slotSchema.primitive  ++ " but got " ++ show prim
+                "Primitive mismatch for slot (" <> show slotName <> ") expected " <> show slotSchema.primitive  <> " but got " <> show prim
             let sType = streamToStreamType <$> attribs
             when (sType /= slotSchema.attributes) $ throwException $ error $ unlines $ 
-                [ "Attribute stream mismatch for slot (" ++ show slotName ++ ") expected "
+                [ "Attribute stream mismatch for slot (" <> show slotName <> ") expected "
                 , show slotSchema.attributes
                 , " but got "
                 , show sType
@@ -85,14 +87,14 @@ addObject input slotName prim indices attribs uniformNames = do
 
     slotIdx <- case slotName `StrMap.lookup` input.slotMap of
       Nothing -> throwException $ error "internal error (slot index)"
-      Just i  -> return i
+      Just i  -> pure i
     order <- newRef 0
     enabled <- newRef true
     index <- readRef input.objSeed
-    modifyRef input.objSeed (1+)
+    modifyRef input.objSeed (\x -> 1+x)
     Tuple setters unis <- mkUniform =<< (for uniformNames $ \n -> case StrMap.lookup n input.schema.uniforms of
       Nothing -> throwException $ error "internal error (uniform setter not found)"
-      Just t -> return $ Tuple n t)
+      Just t -> pure $ Tuple n t)
     cmdsRef <- newRef [[]]
     let obj =
           { slot       : slotIdx
@@ -117,21 +119,21 @@ addObject input slotName prim indices attribs uniformNames = do
     -}
     ppls <- readRef input.pipelines
     cmds <- for ppls $ \mp -> case mp of
-        Nothing -> return []
+        Nothing -> pure []
         Just p  -> do
             Just (InputConnection ic) <- readRef p.input
             case ic.slotMapInputToPipeline `unsafeIndex` slotIdx of
                 Nothing -> do
-                    return []   -- this slot is not used in that pipeline
+                    pure []   -- this slot is not used in that pipeline
                 Just pSlotIdx -> do
                     let emptyV = replicate (length p.programs) []
                         addCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands p.texUnitMapping input.uniformSetup obj (p.programs `unsafeIndex` prgIdx)) v
-                    return $ foldl addCmds emptyV $ p.slotPrograms `unsafeIndex` pSlotIdx
+                    pure $ foldl addCmds emptyV $ p.slotPrograms `unsafeIndex` pSlotIdx
     writeRef cmdsRef cmds
-    return obj
+    pure obj
 
 removeObject :: WebGLPipelineInput -> GLObject -> GFX Unit
-removeObject p obj = modifyRef (p.slotVector `unsafeIndex` obj.slot) $ \s -> {objectMap:Map.delete obj.id s.objectMap, sortedObjects:[], orderJob:Generate}
+removeObject p obj = modifyRef (unsafePartial $ p.slotVector `unsafeIndex` obj.slot) $ \s -> {objectMap:Map.delete obj.id s.objectMap, sortedObjects:[], orderJob:Generate}
 
 enableObject :: GLObject -> Bool -> GFX Unit
 enableObject obj b = writeRef obj.enabled b
@@ -139,7 +141,7 @@ enableObject obj b = writeRef obj.enabled b
 setObjectOrder :: WebGLPipelineInput -> GLObject -> Int -> GFX Unit
 setObjectOrder p obj i = do
     writeRef obj.order i
-    modifyRef (p.slotVector `unsafeIndex` obj.slot) $ \s -> s {orderJob = Reorder}
+    modifyRef (unsafePartial $ p.slotVector `unsafeIndex` obj.slot) $ \s -> s {orderJob = Reorder}
 
 objectUniformSetter :: GLObject -> StrMap.StrMap InputSetter
 objectUniformSetter o = o.uniSetter
@@ -154,20 +156,20 @@ sortSlotObjects p = do
     let cmpFun (Tuple a _) (Tuple b _) = a `compare` b
         doSort objs = writeRef slotRef $ slot {sortedObjects = sortBy cmpFun objs, orderJob = Ordered}
     case slot.orderJob of
-        Ordered -> return unit
+        Ordered -> pure unit
         Generate -> do
             objs <- for (Map.values slot.objectMap) $ \obj -> do
                 ord <- readRef obj.order
-                return $ Tuple ord obj
-            doSort $ List.fromList objs
+                pure $ Tuple ord obj
+            doSort $ List.toUnfoldable objs
         Reorder -> do
             objs <- for slot.sortedObjects $ \(Tuple _ obj) -> do
                 ord <- readRef obj.order
-                return (Tuple ord obj)
+                pure (Tuple ord obj)
             doSort objs
 
 nullSetter :: forall a . String -> String -> a -> GFX Unit
-nullSetter n t _ = return unit -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ n ++ " :: " ++ t
+nullSetter n t _ = pure unit -- Prelude.putStrLn $ "WARNING: unknown uniform: " <> n <> " :: " <> t
 
 uniformBool :: String -> StrMap.StrMap InputSetter -> SetterFun Bool
 uniformBool n is =
@@ -254,12 +256,12 @@ createObjectCommands :: StrMap.StrMap (Ref Int) -> StrMap.StrMap GLUniform -> GL
 createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamCmds, [objDrawCmd]]
   where
     -- object draw command
-    objDrawCmd = let
+    objDrawCmd = unsafePartial $ let
         prim = primitiveToGLType obj.primitive
         streamLen a = case a of
           Stream s  -> [s.length]
           _         -> []
-        count = (concatMap streamLen $ List.fromList $ StrMap.values obj.attributes) `unsafeIndex` 0
+        count = (concatMap streamLen $ List.toUnfoldable $ StrMap.values obj.attributes) `unsafeIndex` 0
       in case obj.indices of
         Nothing -> GLDrawArrays prim 0 count
         Just is -> let 
@@ -270,10 +272,10 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
 
     -- object uniform commands
     -- texture slot setup commands
-    objUniCmds = uniCmds `append` texCmds
+    objUniCmds = unsafePartial $ uniCmds `append` texCmds
       where
         topUni n = StrMap.unsafeIndex topUnis n
-        uniMap  = List.fromList $ StrMap.toList prg.inputUniforms
+        uniMap  = List.toUnfoldable $ StrMap.toList prg.inputUniforms
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ case StrMap.lookup n obj.uniSetup of
           Nothing -> topUnis `StrMap.unsafeIndex` n
           Just u  -> u
@@ -286,7 +288,7 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
           in GLBindTexture txTarget texUnit u
 
     -- object attribute stream commands
-    objStreamCmds = flip map (List.fromList $ StrMap.values prg.inputStreams) $ \is -> let
+    objStreamCmds = unsafePartial $ flip map (List.toUnfoldable $ StrMap.values prg.inputStreams) $ \is -> let
         s = obj.attributes `StrMap.unsafeIndex` is.slotAttribute
         i = is.location
       in case s of
