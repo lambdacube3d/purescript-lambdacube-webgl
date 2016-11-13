@@ -3,7 +3,6 @@ module Backend where
 import Prelude
 import Control.Monad.Eff.Console as C
 import Data.Maybe (fromJust)
-import Data.Array.Partial (unsafeIndex)
 import Data.Int.Bits
 
 import Graphics.WebGLRaw as GL

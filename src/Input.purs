@@ -1,7 +1,6 @@
 module Input where
 
 import Prelude
-import Data.Array.Partial (unsafeIndex)
 import Control.Bind
 import Control.Monad
 import Control.Monad.Eff
