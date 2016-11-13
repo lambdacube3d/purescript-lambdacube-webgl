@@ -34,7 +34,7 @@ schemaFromPipeline (Pipeline ppl) = do
     pure $ Tuple s.slotName {primitive: s.slotPrimitive, attributes: a}
   let ul = map (\(Slot s) -> s.slotUniforms) ppl.slots
   pure $
-    { slots: StrMap.fromList $ List.fromFoldable sl
+    { slots: StrMap.fromFoldable sl
     , uniforms: foldl StrMap.union (StrMap.empty :: StrMap.StrMap InputType) ul
     }
 
@@ -43,14 +43,14 @@ mkUniform l = do
   unisAndSetters <- for l $ \(Tuple n t) -> do
     (Tuple uni setter) <- mkUniformSetter t
     pure $ Tuple (Tuple n uni) (Tuple n setter)
-  let fun (Tuple unis setters) = Tuple (StrMap.fromList $ List.fromFoldable setters) (StrMap.fromList $ List.fromFoldable unis)
+  let fun (Tuple unis setters) = Tuple (StrMap.fromFoldable setters) (StrMap.fromFoldable unis)
   pure $ fun $ unzip unisAndSetters
 
 mkWebGLPipelineInput :: PipelineSchema -> GFX WebGLPipelineInput
 mkWebGLPipelineInput sch = unsafePartial $ do
-  let sm = StrMap.fromList $ List.zip (List.fromFoldable $ StrMap.keys sch.slots) (List.range 0 len)
+  let sm = StrMap.fromFoldable $ List.zip (List.fromFoldable $ StrMap.keys sch.slots) (List.range 0 len)
       len = fromJust $ fromNumber $ StrMap.size sch.slots
-  Tuple setters unis <- mkUniform $ List.toUnfoldable $ StrMap.toList sch.uniforms
+  Tuple setters unis <- mkUniform $ StrMap.toUnfoldable sch.uniforms
   slotV <- replicateA len $ newRef {objectMap: Map.empty :: Map.Map Int GLObject, sortedObjects: [], orderJob: Ordered}
   seed <- newRef 0
   size <- newRef (V2 0 0)
@@ -274,7 +274,7 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
     objUniCmds = unsafePartial $ uniCmds `append` texCmds
       where
         topUni n = StrMap.unsafeIndex topUnis n
-        uniMap  = List.toUnfoldable $ StrMap.toList prg.inputUniforms
+        uniMap  = StrMap.toUnfoldable prg.inputUniforms
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ case StrMap.lookup n obj.uniSetup of
           Nothing -> topUnis `StrMap.unsafeIndex` n
           Just u  -> u

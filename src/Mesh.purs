@@ -72,7 +72,7 @@ addMesh input slotName (Mesh mesh) objUniNames = case mesh.gpuData of
     Just slotSchema -> do
       -- select proper attributes
       let filterStream (Tuple n s) = StrMap.member n slotSchema.attributes
-      addObject input slotName g.primitive g.indices (StrMap.fromList $ List.filter filterStream $ StrMap.toList g.streams) objUniNames
+      addObject input slotName g.primitive g.indices (StrMap.fromFoldable $ List.filter filterStream $ StrMap.toList g.streams) objUniNames
 
 compileMesh :: Mesh -> GFX Mesh
 compileMesh (Mesh mesh) = unsafePartial $ case mesh.gpuData of
@@ -88,7 +88,7 @@ compileMesh (Mesh mesh) = unsafePartial $ case mesh.gpuData of
         P_Triangles         -> pure $ Tuple TriangleList  Nothing
         P_TriangleStripI v  -> Tuple TriangleStrip <$> mkIndexBuf v
         P_TrianglesI v      -> Tuple TriangleList <$> mkIndexBuf v
-    let streams = StrMap.fromList $ List.zipWith (\i (Tuple n a) -> Tuple n (meshAttrToStream vBuf i a)) (List.range 0 $ fromJust $ fromNumber $ StrMap.size mesh.attributes) (StrMap.toList mesh.attributes)
+    let streams = StrMap.fromFoldable $ List.zipWith (\i (Tuple n a) -> Tuple n (meshAttrToStream vBuf i a)) (List.range 0 $ fromJust $ fromNumber $ StrMap.size mesh.attributes) (StrMap.toList mesh.attributes)
         gpuData = {primitive: prim, streams: streams, indices: indices}
     pure $ Mesh $ mesh {gpuData = Just gpuData}
 

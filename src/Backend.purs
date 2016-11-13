@@ -214,15 +214,15 @@ compileProgram (Program p) = do
     status <- GL.getProgramParameter_ po GL._LINK_STATUS
     when (status /= true) $ throwException $ error "link program failed!"
 
-    uniformLocation <- StrMap.fromList <$> for (StrMap.toList p.programUniforms) (\(Tuple uniName uniType) -> do
+    uniformLocation <- StrMap.fromFoldable <$> for (StrMap.toList p.programUniforms) (\(Tuple uniName uniType) -> do
       loc <- GL.getUniformLocation_ po uniName
       pure $ Tuple uniName loc)
 
-    samplerLocation <- StrMap.fromList <$> for (StrMap.toList p.programInTextures) (\(Tuple uniName uniType) -> do
+    samplerLocation <- StrMap.fromFoldable <$> for (StrMap.toList p.programInTextures) (\(Tuple uniName uniType) -> do
       loc <- GL.getUniformLocation_ po uniName
       pure $ Tuple uniName loc)
 
-    streamLocation <- StrMap.fromList <$> for (StrMap.toList p.programStreams) (\(Tuple streamName (Parameter s)) -> do
+    streamLocation <- StrMap.fromFoldable <$> for (StrMap.toList p.programStreams) (\(Tuple streamName (Parameter s)) -> do
       loc <- GL.getAttribLocation_ po streamName
       C.log $ "attrib location " <> streamName <>" " <> show loc
       pure $ Tuple streamName {location: loc, slotAttribute: s.name})
@@ -300,7 +300,7 @@ compileStreamData (StreamData s) = unsafePartial $ do
       compileAttr (VIntArray v) = Array ArrInt16 $ toArray v
       compileAttr (VWordArray v) = Array ArrWord16 $ toArray v
       --TODO: compileAttr (VBoolArray v) = Array ArrWord32 (length v) (withV withArray v)
-  Tuple indexMap arrays <- pure $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(fromJust $ fromNumber $ StrMap.size s.streamData -1.0)) $ List.toUnfoldable $ StrMap.toList s.streamData
+  Tuple indexMap arrays <- pure $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(fromJust $ fromNumber $ StrMap.size s.streamData -1.0)) $ StrMap.toUnfoldable s.streamData
   let getLength n = do
         l <- case StrMap.lookup n s.streamData of
             Just (VFloatArray v) -> pure $ length v
@@ -338,7 +338,7 @@ compileStreamData (StreamData s) = unsafePartial $ do
         Points    -> PointList
         Lines     -> LineList
         Triangles -> TriangleList
-    , attributes: StrMap.fromList $ List.fromFoldable strms
+    , attributes: StrMap.fromFoldable strms
     , program: fromJust $ head $ s.streamPrograms
     }
 
@@ -358,7 +358,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
     -- texture slot setup commands
     streamUniCmds = unsafePartial $ uniCmds `append` texCmds
       where
-        uniMap  = List.toUnfoldable $ StrMap.toList prg.inputUniforms
+        uniMap  = StrMap.toUnfoldable prg.inputUniforms
         topUni n = StrMap.unsafeIndex topUnis n
         uniCmds = flip map uniMap $ \(Tuple n i) -> GLSetUniform i $ topUnis `StrMap.unsafeIndex` n
         texCmds = flip map prg.inputTextureUniforms $ \n ->
