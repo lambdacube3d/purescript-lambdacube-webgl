@@ -13,8 +13,6 @@ import Data.Tuple
 import Data.Array
 import Data.Foldable
 import Data.Traversable
-import Data.Function
-import Data.Function.Uncurried
 
 import IR
 import LinearBase
@@ -61,7 +59,7 @@ updateBuffer b arrs = do
 uploadTexture2DToGPU :: String -> (TextureData -> GFX Unit) -> GFX Unit
 uploadTexture2DToGPU name action = do
   to <- GL.createTexture_
-  runFn2 loadImage_ name \image -> do
+  loadImage_ name \image -> do
     -- HINT: basic implementation
     GLTex.handleLoad2D (GLTex.WebGLTex to) GLTex.MIPMAP image
     action $ TextureData to

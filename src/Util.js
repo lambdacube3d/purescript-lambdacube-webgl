@@ -111,9 +111,11 @@ exports.texImage2DNull_
 
 exports.nullWebGLTexture = null;
 
-exports.loadImage_ = function(name,continuation)
-   {return function()
-    {var i = new Image();
-     i.src = name;
-     i.onload = continuation (i);
-      };};
+exports.loadImage_
+  = function loadImage_(name)
+    {return function(continuation)
+     {return function()
+      {var i = new Image();
+       i.src = name;
+       i.onload = continuation (i);
+      };};};

@@ -16,8 +16,6 @@ import Data.ArrayBuffer.Types as AB
 import Data.TypedArray as TA
 import Math
 import Data.Foldable
-import Data.Function
-import Data.Function.Uncurried
 import Partial.Unsafe (unsafeCrashWith)
 
 import IR
@@ -296,6 +294,4 @@ edgeModeToGLType a = case a of
     ClampToEdge     -> GL._CLAMP_TO_EDGE
     _ -> unsafeCrashWith "edgeModeToGLType"
 
-foreign import loadImage_ :: forall a . Fn2 String
-                     (GLImageData -> GFX a)
-                     (GFX Unit)
+foreign import loadImage_ :: forall a . String -> (GLImageData -> GFX a) -> GFX Unit

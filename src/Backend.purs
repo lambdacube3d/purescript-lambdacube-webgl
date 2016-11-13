@@ -22,8 +22,6 @@ import Data.Int
 import Data.Maybe
 import Data.Array
 import Data.List as List
-import Data.Function
-import Data.Function.Uncurried
 import Data.Unfoldable (replicate, replicateA)
 import Partial.Unsafe (unsafePartial, unsafeCrashWith)
 
