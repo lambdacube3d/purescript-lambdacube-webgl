@@ -1,4 +1,4 @@
-module Mesh where
+module LambdaCube.WebGL.Mesh where
 
 import Prelude
 import Control.Monad.Eff
@@ -20,11 +20,11 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 
-import IR
-import LinearBase
-import Type
-import Data
-import Input
+import LambdaCube.IR
+import LambdaCube.LinearBase
+import LambdaCube.WebGL.Type
+import LambdaCube.WebGL.Data
+import LambdaCube.WebGL.Input
 
 data AttributeType
     = AT_Float

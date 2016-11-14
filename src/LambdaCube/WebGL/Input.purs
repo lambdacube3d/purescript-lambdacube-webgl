@@ -1,4 +1,4 @@
-module Input where
+module LambdaCube.WebGL.Input where
 
 import Prelude
 import Control.Bind
@@ -19,10 +19,11 @@ import Data.Int
 import Data.List as List
 import Data.Unfoldable (replicate, replicateA)
 import Partial.Unsafe (unsafePartial)
-import Type
-import IR
-import LinearBase
-import Util
+
+import LambdaCube.IR
+import LambdaCube.LinearBase
+import LambdaCube.WebGL.Type
+import LambdaCube.WebGL.Util
 
 import Graphics.WebGLRaw as GL
 

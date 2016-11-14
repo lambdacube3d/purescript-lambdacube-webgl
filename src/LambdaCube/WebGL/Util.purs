@@ -1,4 +1,4 @@
-module Util where
+module LambdaCube.WebGL.Util where
 
 import Prelude
 import Control.Monad.Eff.Console as C
@@ -18,9 +18,9 @@ import Math
 import Data.Foldable
 import Partial.Unsafe (unsafeCrashWith)
 
-import IR
-import LinearBase
-import Type
+import LambdaCube.IR
+import LambdaCube.LinearBase
+import LambdaCube.WebGL.Type
 
 comparisonFunctionToGLType :: ComparisonFunction -> GL.GLenum
 comparisonFunctionToGLType a = case a of

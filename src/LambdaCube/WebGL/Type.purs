@@ -1,4 +1,4 @@
-module Type where
+module LambdaCube.WebGL.Type where
 
 import Prelude
 import Control.Monad.Eff
@@ -16,8 +16,8 @@ import Data.Array
 import Data.Int
 import Data.ArrayBuffer.Types as AB
 
-import IR
-import LinearBase
+import LambdaCube.IR
+import LambdaCube.LinearBase
 
 type GFX a = forall e . Eff (webgl :: WebGl, console :: C.CONSOLE, err :: EXCEPTION, ref :: REF | e) a
 

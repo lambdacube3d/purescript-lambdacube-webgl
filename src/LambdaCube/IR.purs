@@ -1,14 +1,15 @@
 -- generated file, do not modify!
--- 2016-09-13T16:04:47.871344262Z
+-- 2016-11-14T21:30:02.094169000000Z
 
-module IR where
+module LambdaCube.IR where
 import Prelude
 import Data.Generic
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.StrMap (StrMap(..))
 import Data.Map (Map(..))
 import Data.List (List(..))
-import LinearBase
+import LambdaCube.LinearBase
 
 import Data.Argonaut.Encode.Combinators ((~>), (:=))
 import Data.Argonaut.Decode.Combinators ((.?))
@@ -16,7 +17,6 @@ import Data.Argonaut.Core (jsonEmptyObject)
 import Data.Argonaut.Printer (printJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
-import Partial.Unsafe (unsafeCrashWith)
 
 
 type StreamName = Int
@@ -441,7 +441,6 @@ data RenderTarget
 data Backend
   = WebGL1
   | OpenGL33
-  | DirectX11
 
 data Pipeline
   = Pipeline
@@ -499,7 +498,7 @@ instance decodeJsonArrayValue :: DecodeJson ArrayValue where
       "VIntArray" -> VIntArray <$> obj .? "arg0"
       "VWordArray" -> VWordArray <$> obj .? "arg0"
       "VFloatArray" -> VFloatArray <$> obj .? "arg0"
-      _ -> unsafeCrashWith "decodeJson @ ArrayValue"
+      _ -> Left ("decodeJsonArrayValue - unknown tag: " <> tag)
 
 instance encodeJsonValue :: EncodeJson Value where
   encodeJson v = case v of
@@ -559,7 +558,7 @@ instance decodeJsonValue :: DecodeJson Value where
       "VM42F" -> VM42F <$> obj .? "arg0"
       "VM43F" -> VM43F <$> obj .? "arg0"
       "VM44F" -> VM44F <$> obj .? "arg0"
-      _ -> unsafeCrashWith "decodeJson @ Value"
+      _ -> Left ("decodeJsonValue - unknown tag: " <> tag)
 
 instance encodeJsonInputType :: EncodeJson InputType where
   encodeJson v = case v of
@@ -691,7 +690,7 @@ instance decodeJsonInputType :: DecodeJson InputType where
       "UTexture2DMSArray" -> pure UTexture2DMSArray
       "UTextureBuffer" -> pure UTextureBuffer
       "UTexture2DRect" -> pure UTexture2DRect
-      _ -> unsafeCrashWith "decodeJson @ InputType"
+      _ -> Left ("decodeJsonInputType - unknown tag: " <> tag)
 
 instance encodeJsonPointSpriteCoordOrigin :: EncodeJson PointSpriteCoordOrigin where
   encodeJson v = case v of
@@ -705,7 +704,7 @@ instance decodeJsonPointSpriteCoordOrigin :: DecodeJson PointSpriteCoordOrigin w
     case tag of
       "LowerLeft" -> pure LowerLeft
       "UpperLeft" -> pure UpperLeft
-      _ -> unsafeCrashWith "decodeJson @ PointSpriteCoordOrigin"
+      _ -> Left ("decodeJsonPointSpriteCoordOrigin - unknown tag: " <> tag)
 
 instance encodeJsonPointSize :: EncodeJson PointSize where
   encodeJson v = case v of
@@ -719,7 +718,7 @@ instance decodeJsonPointSize :: DecodeJson PointSize where
     case tag of
       "PointSize" -> PointSize <$> obj .? "arg0"
       "ProgramPointSize" -> pure ProgramPointSize
-      _ -> unsafeCrashWith "decodeJson @ PointSize"
+      _ -> Left ("decodeJsonPointSize - unknown tag: " <> tag)
 
 instance encodeJsonPolygonOffset :: EncodeJson PolygonOffset where
   encodeJson v = case v of
@@ -733,7 +732,7 @@ instance decodeJsonPolygonOffset :: DecodeJson PolygonOffset where
     case tag of
       "NoOffset" -> pure NoOffset
       "Offset" -> Offset <$> obj .? "arg0" <*> obj .? "arg1"
-      _ -> unsafeCrashWith "decodeJson @ PolygonOffset"
+      _ -> Left ("decodeJsonPolygonOffset - unknown tag: " <> tag)
 
 instance encodeJsonFrontFace :: EncodeJson FrontFace where
   encodeJson v = case v of
@@ -747,7 +746,7 @@ instance decodeJsonFrontFace :: DecodeJson FrontFace where
     case tag of
       "CCW" -> pure CCW
       "CW" -> pure CW
-      _ -> unsafeCrashWith "decodeJson @ FrontFace"
+      _ -> Left ("decodeJsonFrontFace - unknown tag: " <> tag)
 
 instance encodeJsonPolygonMode :: EncodeJson PolygonMode where
   encodeJson v = case v of
@@ -763,7 +762,7 @@ instance decodeJsonPolygonMode :: DecodeJson PolygonMode where
       "PolygonPoint" -> PolygonPoint <$> obj .? "arg0"
       "PolygonLine" -> PolygonLine <$> obj .? "arg0"
       "PolygonFill" -> pure PolygonFill
-      _ -> unsafeCrashWith "decodeJson @ PolygonMode"
+      _ -> Left ("decodeJsonPolygonMode - unknown tag: " <> tag)
 
 instance encodeJsonProvokingVertex :: EncodeJson ProvokingVertex where
   encodeJson v = case v of
@@ -777,7 +776,7 @@ instance decodeJsonProvokingVertex :: DecodeJson ProvokingVertex where
     case tag of
       "FirstVertex" -> pure FirstVertex
       "LastVertex" -> pure LastVertex
-      _ -> unsafeCrashWith "decodeJson @ ProvokingVertex"
+      _ -> Left ("decodeJsonProvokingVertex - unknown tag: " <> tag)
 
 instance encodeJsonCullMode :: EncodeJson CullMode where
   encodeJson v = case v of
@@ -793,7 +792,7 @@ instance decodeJsonCullMode :: DecodeJson CullMode where
       "CullNone" -> pure CullNone
       "CullFront" -> CullFront <$> obj .? "arg0"
       "CullBack" -> CullBack <$> obj .? "arg0"
-      _ -> unsafeCrashWith "decodeJson @ CullMode"
+      _ -> Left ("decodeJsonCullMode - unknown tag: " <> tag)
 
 instance encodeJsonComparisonFunction :: EncodeJson ComparisonFunction where
   encodeJson v = case v of
@@ -819,7 +818,7 @@ instance decodeJsonComparisonFunction :: DecodeJson ComparisonFunction where
       "Notequal" -> pure Notequal
       "Gequal" -> pure Gequal
       "Always" -> pure Always
-      _ -> unsafeCrashWith "decodeJson @ ComparisonFunction"
+      _ -> Left ("decodeJsonComparisonFunction - unknown tag: " <> tag)
 
 instance encodeJsonStencilOperation :: EncodeJson StencilOperation where
   encodeJson v = case v of
@@ -845,7 +844,7 @@ instance decodeJsonStencilOperation :: DecodeJson StencilOperation where
       "OpDecr" -> pure OpDecr
       "OpDecrWrap" -> pure OpDecrWrap
       "OpInvert" -> pure OpInvert
-      _ -> unsafeCrashWith "decodeJson @ StencilOperation"
+      _ -> Left ("decodeJsonStencilOperation - unknown tag: " <> tag)
 
 instance encodeJsonBlendEquation :: EncodeJson BlendEquation where
   encodeJson v = case v of
@@ -865,7 +864,7 @@ instance decodeJsonBlendEquation :: DecodeJson BlendEquation where
       "FuncReverseSubtract" -> pure FuncReverseSubtract
       "Min" -> pure Min
       "Max" -> pure Max
-      _ -> unsafeCrashWith "decodeJson @ BlendEquation"
+      _ -> Left ("decodeJsonBlendEquation - unknown tag: " <> tag)
 
 instance encodeJsonBlendingFactor :: EncodeJson BlendingFactor where
   encodeJson v = case v of
@@ -905,7 +904,7 @@ instance decodeJsonBlendingFactor :: DecodeJson BlendingFactor where
       "ConstantAlpha" -> pure ConstantAlpha
       "OneMinusConstantAlpha" -> pure OneMinusConstantAlpha
       "SrcAlphaSaturate" -> pure SrcAlphaSaturate
-      _ -> unsafeCrashWith "decodeJson @ BlendingFactor"
+      _ -> Left ("decodeJsonBlendingFactor - unknown tag: " <> tag)
 
 instance encodeJsonLogicOperation :: EncodeJson LogicOperation where
   encodeJson v = case v of
@@ -947,7 +946,7 @@ instance decodeJsonLogicOperation :: DecodeJson LogicOperation where
       "OrInverted" -> pure OrInverted
       "Nand" -> pure Nand
       "Set" -> pure Set
-      _ -> unsafeCrashWith "decodeJson @ LogicOperation"
+      _ -> Left ("decodeJsonLogicOperation - unknown tag: " <> tag)
 
 instance encodeJsonStencilOps :: EncodeJson StencilOps where
   encodeJson v = case v of
@@ -969,7 +968,7 @@ instance decodeJsonStencilOps :: DecodeJson StencilOps where
           { frontStencilOp:frontStencilOp
           , backStencilOp:backStencilOp
           } 
-      _ -> unsafeCrashWith "decodeJson @ StencilOps"
+      _ -> Left ("decodeJsonStencilOps - unknown tag: " <> tag)
 
 instance encodeJsonStencilTest :: EncodeJson StencilTest where
   encodeJson v = case v of
@@ -994,7 +993,7 @@ instance decodeJsonStencilTest :: DecodeJson StencilTest where
           , stencilReference:stencilReference
           , stencilMask:stencilMask
           } 
-      _ -> unsafeCrashWith "decodeJson @ StencilTest"
+      _ -> Left ("decodeJsonStencilTest - unknown tag: " <> tag)
 
 instance encodeJsonStencilTests :: EncodeJson StencilTests where
   encodeJson v = case v of
@@ -1006,7 +1005,7 @@ instance decodeJsonStencilTests :: DecodeJson StencilTests where
     tag <- obj .? "tag"
     case tag of
       "StencilTests" -> StencilTests <$> obj .? "arg0" <*> obj .? "arg1"
-      _ -> unsafeCrashWith "decodeJson @ StencilTests"
+      _ -> Left ("decodeJsonStencilTests - unknown tag: " <> tag)
 
 instance encodeJsonFetchPrimitive :: EncodeJson FetchPrimitive where
   encodeJson v = case v of
@@ -1026,7 +1025,7 @@ instance decodeJsonFetchPrimitive :: DecodeJson FetchPrimitive where
       "Triangles" -> pure Triangles
       "LinesAdjacency" -> pure LinesAdjacency
       "TrianglesAdjacency" -> pure TrianglesAdjacency
-      _ -> unsafeCrashWith "decodeJson @ FetchPrimitive"
+      _ -> Left ("decodeJsonFetchPrimitive - unknown tag: " <> tag)
 
 instance encodeJsonOutputPrimitive :: EncodeJson OutputPrimitive where
   encodeJson v = case v of
@@ -1042,7 +1041,7 @@ instance decodeJsonOutputPrimitive :: DecodeJson OutputPrimitive where
       "TrianglesOutput" -> pure TrianglesOutput
       "LinesOutput" -> pure LinesOutput
       "PointsOutput" -> pure PointsOutput
-      _ -> unsafeCrashWith "decodeJson @ OutputPrimitive"
+      _ -> Left ("decodeJsonOutputPrimitive - unknown tag: " <> tag)
 
 instance encodeJsonColorArity :: EncodeJson ColorArity where
   encodeJson v = case v of
@@ -1060,7 +1059,7 @@ instance decodeJsonColorArity :: DecodeJson ColorArity where
       "RG" -> pure RG
       "RGB" -> pure RGB
       "RGBA" -> pure RGBA
-      _ -> unsafeCrashWith "decodeJson @ ColorArity"
+      _ -> Left ("decodeJsonColorArity - unknown tag: " <> tag)
 
 instance encodeJsonBlending :: EncodeJson Blending where
   encodeJson v = case v of
@@ -1101,7 +1100,7 @@ instance decodeJsonBlending :: DecodeJson Blending where
           , alphaFDst:alphaFDst
           , color:color
           } 
-      _ -> unsafeCrashWith "decodeJson @ Blending"
+      _ -> Left ("decodeJsonBlending - unknown tag: " <> tag)
 
 instance encodeJsonRasterContext :: EncodeJson RasterContext where
   encodeJson v = case v of
@@ -1117,7 +1116,7 @@ instance decodeJsonRasterContext :: DecodeJson RasterContext where
       "PointCtx" -> PointCtx <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2"
       "LineCtx" -> LineCtx <$> obj .? "arg0" <*> obj .? "arg1"
       "TriangleCtx" -> TriangleCtx <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2" <*> obj .? "arg3"
-      _ -> unsafeCrashWith "decodeJson @ RasterContext"
+      _ -> Left ("decodeJsonRasterContext - unknown tag: " <> tag)
 
 instance encodeJsonFragmentOperation :: EncodeJson FragmentOperation where
   encodeJson v = case v of
@@ -1133,7 +1132,7 @@ instance decodeJsonFragmentOperation :: DecodeJson FragmentOperation where
       "DepthOp" -> DepthOp <$> obj .? "arg0" <*> obj .? "arg1"
       "StencilOp" -> StencilOp <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2"
       "ColorOp" -> ColorOp <$> obj .? "arg0" <*> obj .? "arg1"
-      _ -> unsafeCrashWith "decodeJson @ FragmentOperation"
+      _ -> Left ("decodeJsonFragmentOperation - unknown tag: " <> tag)
 
 instance encodeJsonAccumulationContext :: EncodeJson AccumulationContext where
   encodeJson v = case v of
@@ -1155,7 +1154,7 @@ instance decodeJsonAccumulationContext :: DecodeJson AccumulationContext where
           { accViewportName:accViewportName
           , accOperations:accOperations
           } 
-      _ -> unsafeCrashWith "decodeJson @ AccumulationContext"
+      _ -> Left ("decodeJsonAccumulationContext - unknown tag: " <> tag)
 
 instance encodeJsonTextureDataType :: EncodeJson TextureDataType where
   encodeJson v = case v of
@@ -1173,7 +1172,7 @@ instance decodeJsonTextureDataType :: DecodeJson TextureDataType where
       "IntT" -> IntT <$> obj .? "arg0"
       "WordT" -> WordT <$> obj .? "arg0"
       "ShadowT" -> pure ShadowT
-      _ -> unsafeCrashWith "decodeJson @ TextureDataType"
+      _ -> Left ("decodeJsonTextureDataType - unknown tag: " <> tag)
 
 instance encodeJsonTextureType :: EncodeJson TextureType where
   encodeJson v = case v of
@@ -1197,7 +1196,7 @@ instance decodeJsonTextureType :: DecodeJson TextureType where
       "TextureRect" -> TextureRect <$> obj .? "arg0"
       "Texture2DMS" -> Texture2DMS <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2" <*> obj .? "arg3"
       "TextureBuffer" -> TextureBuffer <$> obj .? "arg0"
-      _ -> unsafeCrashWith "decodeJson @ TextureType"
+      _ -> Left ("decodeJsonTextureType - unknown tag: " <> tag)
 
 instance encodeJsonMipMap :: EncodeJson MipMap where
   encodeJson v = case v of
@@ -1213,7 +1212,7 @@ instance decodeJsonMipMap :: DecodeJson MipMap where
       "Mip" -> Mip <$> obj .? "arg0" <*> obj .? "arg1"
       "NoMip" -> pure NoMip
       "AutoMip" -> AutoMip <$> obj .? "arg0" <*> obj .? "arg1"
-      _ -> unsafeCrashWith "decodeJson @ MipMap"
+      _ -> Left ("decodeJsonMipMap - unknown tag: " <> tag)
 
 instance encodeJsonFilter :: EncodeJson Filter where
   encodeJson v = case v of
@@ -1235,7 +1234,7 @@ instance decodeJsonFilter :: DecodeJson Filter where
       "NearestMipmapLinear" -> pure NearestMipmapLinear
       "LinearMipmapNearest" -> pure LinearMipmapNearest
       "LinearMipmapLinear" -> pure LinearMipmapLinear
-      _ -> unsafeCrashWith "decodeJson @ Filter"
+      _ -> Left ("decodeJsonFilter - unknown tag: " <> tag)
 
 instance encodeJsonEdgeMode :: EncodeJson EdgeMode where
   encodeJson v = case v of
@@ -1253,7 +1252,7 @@ instance decodeJsonEdgeMode :: DecodeJson EdgeMode where
       "MirroredRepeat" -> pure MirroredRepeat
       "ClampToEdge" -> pure ClampToEdge
       "ClampToBorder" -> pure ClampToBorder
-      _ -> unsafeCrashWith "decodeJson @ EdgeMode"
+      _ -> Left ("decodeJsonEdgeMode - unknown tag: " <> tag)
 
 instance encodeJsonImageSemantic :: EncodeJson ImageSemantic where
   encodeJson v = case v of
@@ -1269,7 +1268,7 @@ instance decodeJsonImageSemantic :: DecodeJson ImageSemantic where
       "Depth" -> pure Depth
       "Stencil" -> pure Stencil
       "Color" -> pure Color
-      _ -> unsafeCrashWith "decodeJson @ ImageSemantic"
+      _ -> Left ("decodeJsonImageSemantic - unknown tag: " <> tag)
 
 instance encodeJsonImageRef :: EncodeJson ImageRef where
   encodeJson v = case v of
@@ -1283,7 +1282,7 @@ instance decodeJsonImageRef :: DecodeJson ImageRef where
     case tag of
       "TextureImage" -> TextureImage <$> obj .? "arg0" <*> obj .? "arg1" <*> obj .? "arg2"
       "Framebuffer" -> Framebuffer <$> obj .? "arg0"
-      _ -> unsafeCrashWith "decodeJson @ ImageRef"
+      _ -> Left ("decodeJsonImageRef - unknown tag: " <> tag)
 
 instance encodeJsonClearImage :: EncodeJson ClearImage where
   encodeJson v = case v of
@@ -1305,7 +1304,7 @@ instance decodeJsonClearImage :: DecodeJson ClearImage where
           { imageSemantic:imageSemantic
           , clearValue:clearValue
           } 
-      _ -> unsafeCrashWith "decodeJson @ ClearImage"
+      _ -> Left ("decodeJsonClearImage - unknown tag: " <> tag)
 
 instance encodeJsonCommand :: EncodeJson Command where
   encodeJson v = case v of
@@ -1341,7 +1340,7 @@ instance decodeJsonCommand :: DecodeJson Command where
       "GenerateMipMap" -> GenerateMipMap <$> obj .? "arg0"
       "SaveImage" -> SaveImage <$> obj .? "arg0" <*> obj .? "arg1"
       "LoadImage" -> LoadImage <$> obj .? "arg0" <*> obj .? "arg1"
-      _ -> unsafeCrashWith "decodeJson @ Command"
+      _ -> Left ("decodeJsonCommand - unknown tag: " <> tag)
 
 instance encodeJsonSamplerDescriptor :: EncodeJson SamplerDescriptor where
   encodeJson v = case v of
@@ -1387,7 +1386,7 @@ instance decodeJsonSamplerDescriptor :: DecodeJson SamplerDescriptor where
           , samplerLodBias:samplerLodBias
           , samplerCompareFunc:samplerCompareFunc
           } 
-      _ -> unsafeCrashWith "decodeJson @ SamplerDescriptor"
+      _ -> Left ("decodeJsonSamplerDescriptor - unknown tag: " <> tag)
 
 instance encodeJsonTextureDescriptor :: EncodeJson TextureDescriptor where
   encodeJson v = case v of
@@ -1421,7 +1420,7 @@ instance decodeJsonTextureDescriptor :: DecodeJson TextureDescriptor where
           , textureBaseLevel:textureBaseLevel
           , textureMaxLevel:textureMaxLevel
           } 
-      _ -> unsafeCrashWith "decodeJson @ TextureDescriptor"
+      _ -> Left ("decodeJsonTextureDescriptor - unknown tag: " <> tag)
 
 instance encodeJsonParameter :: EncodeJson Parameter where
   encodeJson v = case v of
@@ -1443,7 +1442,7 @@ instance decodeJsonParameter :: DecodeJson Parameter where
           { name:name
           , ty:ty
           } 
-      _ -> unsafeCrashWith "decodeJson @ Parameter"
+      _ -> Left ("decodeJsonParameter - unknown tag: " <> tag)
 
 instance encodeJsonProgram :: EncodeJson Program where
   encodeJson v = case v of
@@ -1480,7 +1479,7 @@ instance decodeJsonProgram :: DecodeJson Program where
           , geometryShader:geometryShader
           , fragmentShader:fragmentShader
           } 
-      _ -> unsafeCrashWith "decodeJson @ Program"
+      _ -> Left ("decodeJsonProgram - unknown tag: " <> tag)
 
 instance encodeJsonSlot :: EncodeJson Slot where
   encodeJson v = case v of
@@ -1511,7 +1510,7 @@ instance decodeJsonSlot :: DecodeJson Slot where
           , slotPrimitive:slotPrimitive
           , slotPrograms:slotPrograms
           } 
-      _ -> unsafeCrashWith "decodeJson @ Slot"
+      _ -> Left ("decodeJsonSlot - unknown tag: " <> tag)
 
 instance encodeJsonStreamData :: EncodeJson StreamData where
   encodeJson v = case v of
@@ -1539,7 +1538,7 @@ instance decodeJsonStreamData :: DecodeJson StreamData where
           , streamPrimitive:streamPrimitive
           , streamPrograms:streamPrograms
           } 
-      _ -> unsafeCrashWith "decodeJson @ StreamData"
+      _ -> Left ("decodeJsonStreamData - unknown tag: " <> tag)
 
 instance encodeJsonTargetItem :: EncodeJson TargetItem where
   encodeJson v = case v of
@@ -1561,7 +1560,7 @@ instance decodeJsonTargetItem :: DecodeJson TargetItem where
           { targetSemantic:targetSemantic
           , targetRef:targetRef
           } 
-      _ -> unsafeCrashWith "decodeJson @ TargetItem"
+      _ -> Left ("decodeJsonTargetItem - unknown tag: " <> tag)
 
 instance encodeJsonRenderTarget :: EncodeJson RenderTarget where
   encodeJson v = case v of
@@ -1580,13 +1579,12 @@ instance decodeJsonRenderTarget :: DecodeJson RenderTarget where
         pure $ RenderTarget
           { renderTargets:renderTargets
           } 
-      _ -> unsafeCrashWith "decodeJson @ RenderTarget"
+      _ -> Left ("decodeJsonRenderTarget - unknown tag: " <> tag)
 
 instance encodeJsonBackend :: EncodeJson Backend where
   encodeJson v = case v of
     WebGL1 -> "tag" := "WebGL1" ~> jsonEmptyObject
     OpenGL33 -> "tag" := "OpenGL33" ~> jsonEmptyObject
-    DirectX11 -> "tag" := "DirectX11" ~> jsonEmptyObject
 
 instance decodeJsonBackend :: DecodeJson Backend where
   decodeJson json = do
@@ -1595,8 +1593,7 @@ instance decodeJsonBackend :: DecodeJson Backend where
     case tag of
       "WebGL1" -> pure WebGL1
       "OpenGL33" -> pure OpenGL33
-      "DirectX11" -> pure DirectX11
-      _ -> unsafeCrashWith "decodeJson @ Backend"
+      _ -> Left ("decodeJsonBackend - unknown tag: " <> tag)
 
 instance encodeJsonPipeline :: EncodeJson Pipeline where
   encodeJson v = case v of
@@ -1639,5 +1636,5 @@ instance decodeJsonPipeline :: DecodeJson Pipeline where
           , streams:streams
           , commands:commands
           } 
-      _ -> unsafeCrashWith "decodeJson @ Pipeline"
+      _ -> Left ("decodeJsonPipeline - unknown tag: " <> tag)
 

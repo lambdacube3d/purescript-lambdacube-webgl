@@ -1,4 +1,4 @@
-module Data where
+module LambdaCube.WebGL.Data where
 
 import Prelude
 import Control.Monad.Eff.Console as C
@@ -14,10 +14,10 @@ import Data.Array
 import Data.Foldable
 import Data.Traversable
 
-import IR
-import LinearBase
-import Type
-import Util
+import LambdaCube.IR
+import LambdaCube.LinearBase
+import LambdaCube.WebGL.Type
+import LambdaCube.WebGL.Util
 
 compileBuffer :: Array LCArray -> GFX Buffer
 compileBuffer arrs = do

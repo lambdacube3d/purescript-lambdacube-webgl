@@ -1,4 +1,4 @@
-module LinearBase where
+module LambdaCube.LinearBase where
 import Prelude
 import Data.Generic
 

@@ -1,4 +1,4 @@
-module Backend where
+module LambdaCube.WebGL.Backend where
 
 import Prelude
 import Control.Monad.Eff.Console as C
@@ -25,12 +25,12 @@ import Data.List as List
 import Data.Unfoldable (replicate, replicateA)
 import Partial.Unsafe (unsafePartial, unsafeCrashWith)
 
-import Type
-import IR
-import LinearBase
-import Util
-import Input
-import Data
+import LambdaCube.IR
+import LambdaCube.LinearBase
+import LambdaCube.WebGL.Type
+import LambdaCube.WebGL.Util
+import LambdaCube.WebGL.Input
+import LambdaCube.WebGL.Data
 
 setupRasterContext :: RasterContext -> GFX Unit
 setupRasterContext = cvt
