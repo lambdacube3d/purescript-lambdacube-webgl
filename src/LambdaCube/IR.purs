@@ -1,5 +1,5 @@
 -- generated file, do not modify!
--- 2016-11-14T21:30:02.094169000000Z
+-- 2016-11-15T20:33:22.535345000000Z
 
 module LambdaCube.IR where
 import Prelude
@@ -457,30 +457,15 @@ data Pipeline
 
 
 
-derive instance genericInputType :: Generic InputType
-instance showInputType :: Show InputType where show = gShow
-instance eqInputType   :: Eq InputType   where eq = gEq
-
 derive instance genericFetchPrimitive :: Generic FetchPrimitive
 instance showFetchPrimitive :: Show FetchPrimitive where show = gShow
 instance eqFetchPrimitive   :: Eq FetchPrimitive   where eq = gEq
 
 derive instance genericColorArity :: Generic ColorArity
 instance showColorArity :: Show ColorArity where show = gShow
-instance eqColorArity   :: Eq ColorArity   where eq = gEq
 
 derive instance genericTextureDataType :: Generic TextureDataType
 instance showTextureDataType :: Show TextureDataType where show = gShow
-instance eqTextureDataType   :: Eq TextureDataType   where eq = gEq
-
-derive instance genericImageSemantic :: Generic ImageSemantic
-instance showImageSemantic :: Show ImageSemantic where show = gShow
-instance eqImageSemantic   :: Eq ImageSemantic   where eq = gEq
-{-
-derive instance genericPipeline :: Generic Pipeline
-instance showPipeline :: Show Pipeline where show = gShow
-instance eqPipeline   :: Eq Pipeline   where eq = gEq
--}
 
 instance encodeJsonArrayValue :: EncodeJson ArrayValue where
   encodeJson v = case v of
