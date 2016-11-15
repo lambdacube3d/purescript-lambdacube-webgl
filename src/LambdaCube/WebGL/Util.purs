@@ -20,6 +20,7 @@ import Partial.Unsafe (unsafeCrashWith)
 
 import LambdaCube.IR
 import LambdaCube.LinearBase
+import LambdaCube.PipelineSchema
 import LambdaCube.WebGL.Type
 
 comparisonFunctionToGLType :: ComparisonFunction -> GL.GLenum
@@ -61,13 +62,13 @@ blendingFactorToGLType a = case a of
 
 toStreamType :: InputType -> GFX StreamType
 toStreamType a = case a of
-  Float -> pure TFloat
-  V2F   -> pure TV2F
-  V3F   -> pure TV3F
-  V4F   -> pure TV4F
-  M22F  -> pure TM22F
-  M33F  -> pure TM33F
-  M44F  -> pure TM44F
+  Float -> pure Attribute_Float
+  V2F   -> pure Attribute_V2F
+  V3F   -> pure Attribute_V3F
+  V4F   -> pure Attribute_V4F
+  M22F  -> pure Attribute_M22F
+  M33F  -> pure Attribute_M33F
+  M44F  -> pure Attribute_M44F
   _     -> throwException $ error "invalid Stream Type"
 
 foreign import setFloatArray :: AB.Float32Array -> Array Float -> GFX Unit

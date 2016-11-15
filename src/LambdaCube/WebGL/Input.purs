@@ -22,6 +22,7 @@ import Partial.Unsafe (unsafePartial)
 
 import LambdaCube.IR
 import LambdaCube.LinearBase
+import LambdaCube.PipelineSchema
 import LambdaCube.WebGL.Type
 import LambdaCube.WebGL.Util
 
@@ -32,10 +33,10 @@ schemaFromPipeline :: Pipeline -> GFX PipelineSchema
 schemaFromPipeline (Pipeline ppl) = do
   sl <- for ppl.slots $ \(Slot s) -> do
     a <- traverse toStreamType s.slotStreams
-    pure $ Tuple s.slotName {primitive: s.slotPrimitive, attributes: a}
+    pure $ Tuple s.slotName $ ObjectArraySchema {primitive: s.slotPrimitive, attributes: a}
   let ul = map (\(Slot s) -> s.slotUniforms) ppl.slots
-  pure $
-    { slots: StrMap.fromFoldable sl
+  pure $ PipelineSchema
+    { objectArrays: StrMap.fromFoldable sl
     , uniforms: foldl StrMap.union (StrMap.empty :: StrMap.StrMap InputType) ul
     }
 
@@ -48,16 +49,16 @@ mkUniform l = do
   pure $ fun $ unzip unisAndSetters
 
 mkWebGLPipelineInput :: PipelineSchema -> GFX WebGLPipelineInput
-mkWebGLPipelineInput sch = unsafePartial $ do
-  let sm = StrMap.fromFoldable $ List.zip (List.fromFoldable $ StrMap.keys sch.slots) (List.range 0 len)
-      len = fromJust $ fromNumber $ StrMap.size sch.slots
+mkWebGLPipelineInput (PipelineSchema sch) = unsafePartial $ do
+  let sm = StrMap.fromFoldable $ List.zip (List.fromFoldable $ StrMap.keys sch.objectArrays) (List.range 0 len)
+      len = fromJust $ fromNumber $ StrMap.size sch.objectArrays
   Tuple setters unis <- mkUniform $ StrMap.toUnfoldable sch.uniforms
   slotV <- replicateA len $ newRef {objectMap: Map.empty :: Map.Map Int GLObject, sortedObjects: [], orderJob: Ordered}
   seed <- newRef 0
   size <- newRef (V2 0 0)
   ppls <- newRef [Nothing]
   pure $
-    { schema        : sch
+    { schema        : PipelineSchema sch
     , slotMap       : sm
     , slotVector    : slotV
     , objSeed       : seed
@@ -69,12 +70,13 @@ mkWebGLPipelineInput sch = unsafePartial $ do
 
 addObject :: WebGLPipelineInput -> String -> Primitive -> Maybe (IndexStream Buffer) -> StrMap.StrMap (Stream Buffer) -> Array String -> GFX GLObject
 addObject input slotName prim indices attribs uniformNames = unsafePartial $ do
-    for_ uniformNames $ \n -> case StrMap.lookup n input.schema.uniforms of
+    PipelineSchema schema <- pure input.schema
+    for_ uniformNames $ \n -> case StrMap.lookup n schema.uniforms of
         Nothing -> throwException $ error $ "Unknown uniform: " <> show n
         _ -> pure unit
-    case StrMap.lookup slotName input.schema.slots of
-        Nothing -> throwException $ error $ "Unknown slot: " <> slotName
-        Just slotSchema -> do
+    case StrMap.lookup slotName schema.objectArrays of
+        Nothing -> throwException $ error $ "Unknown objectArray: " <> slotName
+        Just (ObjectArraySchema slotSchema) -> do
             when (slotSchema.primitive /= (primitiveToFetchPrimitive prim)) $ throwException $ error $
                 "Primitive mismatch for slot (" <> show slotName <> ") expected " <> show slotSchema.primitive  <> " but got " <> show prim
             let sType = streamToStreamType <$> attribs
@@ -92,7 +94,7 @@ addObject input slotName prim indices attribs uniformNames = unsafePartial $ do
     enabled <- newRef true
     index <- readRef input.objSeed
     modifyRef input.objSeed (\x -> 1+x)
-    Tuple setters unis <- mkUniform =<< (for uniformNames $ \n -> case StrMap.lookup n input.schema.uniforms of
+    Tuple setters unis <- mkUniform =<< (for uniformNames $ \n -> case StrMap.lookup n schema.uniforms of
       Nothing -> throwException $ error "internal error (uniform setter not found)"
       Just t -> pure $ Tuple n t)
     cmdsRef <- newRef [[]]
@@ -298,12 +300,12 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
               ptr compCnt = desc.arrOffset + s.start * compCnt * sizeOfArrayType desc.arrType
               setFloatAttrib n = GLSetVertexAttribArray i s.buffer.glBuffer n glType (ptr n)
             in setFloatAttrib $ case s.sType of
-                TFloat  -> 1
-                TV2F    -> 2
-                TV3F    -> 3
-                TV4F    -> 4
-                TM22F   -> 4
-                TM33F   -> 9
-                TM44F   -> 16
+                Attribute_Float  -> 1
+                Attribute_V2F    -> 2
+                Attribute_V3F    -> 3
+                Attribute_V4F    -> 4
+                Attribute_M22F   -> 4
+                Attribute_M33F   -> 9
+                Attribute_M44F   -> 16
             -- constant generic attribute
           constAttr -> GLSetVertexAttrib i constAttr

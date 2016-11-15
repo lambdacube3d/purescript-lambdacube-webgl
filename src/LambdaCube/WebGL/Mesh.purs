@@ -17,6 +17,7 @@ import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 import LambdaCube.Mesh
 import LambdaCube.IR
 import LambdaCube.LinearBase
+import LambdaCube.PipelineSchema
 import LambdaCube.WebGL.Type
 import LambdaCube.WebGL.Data
 import LambdaCube.WebGL.Input
@@ -33,9 +34,10 @@ data GPUMesh = GPUMesh
     }
 
 addMesh :: WebGLPipelineInput -> String -> GPUMesh -> Array String -> GFX GLObject
-addMesh input slotName (GPUMesh mesh) objUniNames = case StrMap.lookup slotName input.schema.slots of
+addMesh input slotName (GPUMesh mesh) objUniNames = case input.schema of
+  PipelineSchema schema -> case StrMap.lookup slotName schema.objectArrays of
     Nothing -> throwException $ error "addMesh: slot not found"
-    Just slotSchema -> do
+    Just (ObjectArraySchema slotSchema) -> do
       -- select proper attributes
       let filterStream (Tuple n s) = StrMap.member n slotSchema.attributes
       addObject input slotName mesh.gpuData.primitive mesh.gpuData.indices (StrMap.fromFoldable $ List.filter filterStream $ StrMap.toList mesh.gpuData.streams) objUniNames
@@ -73,24 +75,24 @@ meshAttrToArray a = case a of
 -}
 meshAttrToStream :: Buffer -> Int -> MeshAttribute -> Stream Buffer
 meshAttrToStream b i a = Stream $ case a of
-  A_Float v   -> {sType: TFloat, buffer: b, arrIdx: i , start: 0, length: length v}
-  A_V2F   v   -> {sType: TV2F  , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_V3F   v   -> {sType: TV3F  , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_V4F   v   -> {sType: TV4F  , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_M22F  v   -> {sType: TM22F , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_M33F  v   -> {sType: TM33F , buffer: b, arrIdx: i , start: 0, length: length v}
-  A_M44F  v   -> {sType: TM44F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_Float v   -> {sType: Attribute_Float, buffer: b, arrIdx: i , start: 0, length: length v}
+  A_V2F   v   -> {sType: Attribute_V2F  , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_V3F   v   -> {sType: Attribute_V3F  , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_V4F   v   -> {sType: Attribute_V4F  , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_M22F  v   -> {sType: Attribute_M22F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_M33F  v   -> {sType: Attribute_M33F , buffer: b, arrIdx: i , start: 0, length: length v}
+  A_M44F  v   -> {sType: Attribute_M44F , buffer: b, arrIdx: i , start: 0, length: length v}
   _ -> unsafeCrashWith "meshAttrToStream - unsupported MeshAttribute"
 {-
   A_Flat t v  -> let
       tn = case t of
-        AT_Float  -> Tuple TFloat 1
-        AT_V2F    -> Tuple TV2F   2
-        AT_V3F    -> Tuple TV3F   3
-        AT_V4F    -> Tuple TV4F   4
-        AT_M22F   -> Tuple TM22F  4
-        AT_M33F   -> Tuple TM33F  9
-        AT_M44F   -> Tuple TM44F  16
+        AT_Float  -> Tuple Attribute_Float 1
+        AT_V2F    -> Tuple Attribute_V2F   2
+        AT_V3F    -> Tuple Attribute_V3F   3
+        AT_V4F    -> Tuple Attribute_V4F   4
+        AT_M22F   -> Tuple Attribute_M22F  4
+        AT_M33F   -> Tuple Attribute_M33F  9
+        AT_M44F   -> Tuple Attribute_M44F  16
     in case tn of
       Tuple st n -> {sType: st , buffer: b, arrIdx: i , start: 0, length: length v / n}
 -}

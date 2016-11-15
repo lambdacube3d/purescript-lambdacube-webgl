@@ -18,6 +18,7 @@ import Data.ArrayBuffer.Types as AB
 
 import LambdaCube.IR
 import LambdaCube.LinearBase
+import LambdaCube.PipelineSchema
 
 type GFX a = forall e . Eff (webgl :: WebGl, console :: C.CONSOLE, err :: EXCEPTION, ref :: REF | e) a
 
@@ -57,34 +58,6 @@ sizeOfArrayType ArrFloat  = 4
 
 -- describes an array in a buffer
 data LCArray = Array ArrayType (Array Number)
-
-data StreamType
-    = TFloat
-    | TV2F
-    | TV3F
-    | TV4F
-    | TM22F
-    | TM33F
-    | TM44F 
-
-instance eqStreamType :: Eq (StreamType) where
-  eq TFloat TFloat = true
-  eq TV2F   TV2F   = true
-  eq TV3F   TV3F   = true
-  eq TV4F   TV4F   = true
-  eq TM22F  TM22F  = true
-  eq TM33F  TM33F  = true
-  eq TM44F  TM44F  = true
-  eq _      _      = false
-
-instance showStreamType :: Show (StreamType) where
-  show TFloat = "TFloat"
-  show TV2F   = "TV2F"
-  show TV3F   = "TV3F"
-  show TV4F   = "TV4F"
-  show TM22F  = "TM22F"
-  show TM33F  = "TM33F"
-  show TM44F  = "TM44F"
 
 data Stream b
     = ConstFloat Float
@@ -126,16 +99,6 @@ instance showPrimitive :: Show (Primitive) where
   show LineList      = "LineList"
   show LineLoop      = "LineLoop"
   show PointList     = "PointList"
-
-type SlotSchema =
-    { primitive     :: FetchPrimitive
-    , attributes    :: StrMap.StrMap StreamType
-    }
-
-type PipelineSchema =
-    { slots     :: StrMap.StrMap SlotSchema
-    , uniforms  :: StrMap.StrMap InputType
-    }
 
 data OrderJob
     = Generate
@@ -270,13 +233,13 @@ data InputSetter
 
 streamToStreamType :: forall a . Stream a -> StreamType
 streamToStreamType s = case s of
-    ConstFloat _ -> TFloat
-    ConstV2F   _ -> TV2F
-    ConstV3F   _ -> TV3F
-    ConstV4F   _ -> TV4F
-    ConstM22F  _ -> TM22F
-    ConstM33F  _ -> TM33F
-    ConstM44F  _ -> TM44F
+    ConstFloat _ -> Attribute_Float
+    ConstV2F   _ -> Attribute_V2F
+    ConstV3F   _ -> Attribute_V3F
+    ConstV4F   _ -> Attribute_V4F
+    ConstM22F  _ -> Attribute_M22F
+    ConstM33F  _ -> Attribute_M33F
+    ConstM44F  _ -> Attribute_M44F
     Stream t -> t.sType
 
 class NumberStorable a where

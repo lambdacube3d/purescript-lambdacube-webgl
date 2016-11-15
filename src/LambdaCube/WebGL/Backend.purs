@@ -27,6 +27,7 @@ import Partial.Unsafe (unsafePartial, unsafeCrashWith)
 
 import LambdaCube.IR
 import LambdaCube.LinearBase
+import LambdaCube.PipelineSchema
 import LambdaCube.WebGL.Type
 import LambdaCube.WebGL.Util
 import LambdaCube.WebGL.Input
@@ -378,13 +379,13 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
               ptr compCnt = desc.arrOffset + s.start * compCnt * sizeOfArrayType desc.arrType
               setFloatAttrib n = GLSetVertexAttribArray i s.buffer.glBuffer n glType (ptr n)
             in setFloatAttrib $ case s.sType of
-                TFloat  -> 1
-                TV2F    -> 2
-                TV3F    -> 3
-                TV4F    -> 4
-                TM22F   -> 4
-                TM33F   -> 9
-                TM44F   -> 16
+                Attribute_Float  -> 1
+                Attribute_V2F    -> 2
+                Attribute_V3F    -> 3
+                Attribute_V4F    -> 4
+                Attribute_M22F   -> 4
+                Attribute_M33F   -> 9
+                Attribute_M44F   -> 16
             -- constant generic attribute
           constAttr -> GLSetVertexAttrib i constAttr
 
