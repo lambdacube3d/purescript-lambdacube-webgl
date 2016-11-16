@@ -60,6 +60,6 @@ uploadTexture2DToGPU :: String -> (TextureData -> GFX Unit) -> GFX Unit
 uploadTexture2DToGPU name action = do
   to <- GL.createTexture_
   loadImage_ name \image -> do
-    -- HINT: basic implementation
-    GLTex.handleLoad2D (GLTex.WebGLTex to) GLTex.MIPMAP image
+    -- FIXME: basic implementation, the filter should be controlled by the pipeline not by the input
+    GLTex.handleLoad2D (GLTex.WebGLTex to) GLTex.LINEAR image
     action $ TextureData to
