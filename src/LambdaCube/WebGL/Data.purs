@@ -61,5 +61,12 @@ uploadTexture2DToGPU name action = do
   to <- GL.createTexture_
   loadImage_ name \image -> do
     -- FIXME: basic implementation, the filter should be controlled by the pipeline not by the input
-    GLTex.handleLoad2D (GLTex.WebGLTex to) GLTex.LINEAR image
+    GL.bindTexture_ GL._TEXTURE_2D to
+    GL.texParameteri_ GL._TEXTURE_2D GL._TEXTURE_MAG_FILTER GL._LINEAR
+    GL.texParameteri_ GL._TEXTURE_2D GL._TEXTURE_MIN_FILTER GL._LINEAR
+    GL.pixelStorei_ GL._UNPACK_FLIP_Y_WEBGL 1
+    GL.pixelStorei_ GL._UNPACK_PREMULTIPLY_ALPHA_WEBGL 0
+    texImage2D__ GL._TEXTURE_2D 0 GL._RGBA GL._RGBA GL._UNSIGNED_BYTE image
+    GLTex.unbindTexture GLTex.TEXTURE_2D
+
     action $ TextureData to

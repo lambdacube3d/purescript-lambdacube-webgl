@@ -270,6 +270,16 @@ foreign import texImage2DNull_
        GL.GLenum->
        GFX Unit
 
+foreign import texImage2D__
+    :: forall a.
+       GL.GLenum
+    -> GL.GLint
+    -> GL.GLenum
+    -> GL.GLenum
+    -> GL.GLenum
+    -> a
+    -> GFX Unit
+
 setTextureSamplerParameters :: GL.GLenum -> SamplerDescriptor -> GFX Unit
 setTextureSamplerParameters t (SamplerDescriptor s) = do
     GL.texParameteri_ t GL._TEXTURE_WRAP_S $ edgeModeToGLType s.samplerWrapS

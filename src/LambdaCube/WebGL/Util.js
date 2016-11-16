@@ -119,3 +119,13 @@ exports.loadImage_
        i.src = name;
        i.onload = continuation (i);
       };};};
+
+exports.texImage2D__
+  = function (target)
+    {return function(level)
+     {return function(internalformat)
+      {return function(format)
+       {return function(type)
+        {return function(pixels)
+         {return function()
+          {gl.texImage2D(target,level,internalformat,format,type,pixels);};};};};};};};
