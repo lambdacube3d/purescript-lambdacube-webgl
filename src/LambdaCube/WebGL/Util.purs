@@ -1,27 +1,23 @@
 module LambdaCube.WebGL.Util where
 
 import Prelude
-import Control.Monad.Eff.Console as C
 import Graphics.WebGLRaw as GL
-import Control.Monad.Eff
-import Control.Monad.Eff.Exception
-import Control.Monad.Eff.Ref
-import Control.Monad.Eff.WebGL
-import Data.Tuple
-import Data.Maybe
-import Data.Array
-import Data.List (List(..))
-import Data.Unfoldable (replicate)
+import Control.Monad.Eff.Exception (error, throwException)
+import Control.Monad.Eff.Ref (newRef, writeRef)
+import Data.Tuple (Tuple(..))
+import Data.Maybe (Maybe(..))
+import Data.Array (null, replicate, uncons, zip, (..), (:))
+--import Data.Unfoldable (replicate)
 import Data.ArrayBuffer.Types as AB
 import Data.TypedArray as TA
-import Math
-import Data.Foldable
+import Math (floor)
+import Data.Foldable (for_)
 import Partial.Unsafe (unsafeCrashWith)
 
-import LambdaCube.IR
-import LambdaCube.LinearBase
-import LambdaCube.PipelineSchema
-import LambdaCube.WebGL.Type
+import LambdaCube.IR (BlendEquation(..), BlendingFactor(..), ColorArity(..), ComparisonFunction(..), EdgeMode(..), FetchPrimitive(..), Filter(..), ImageSemantic(..), InputType(..), SamplerDescriptor(..), TextureDataType(..), TextureDescriptor(..), TextureType(..), Value(..))
+import LambdaCube.LinearBase (Float, V2(..), V2F, V3(..), V3F, V4(..), V4F)
+import LambdaCube.PipelineSchema (StreamType(..))
+import LambdaCube.WebGL.Type (ArrayBuffer, ArrayType(..), ArrayView, Buffer, GFX, GLImageData, GLTexture, GLUniform(..), InputSetter(..), Primitive(..), Stream(..), TextureData(..), toArray, toIntArray)
 
 comparisonFunctionToGLType :: ComparisonFunction -> GL.GLenum
 comparisonFunctionToGLType a = case a of
@@ -111,7 +107,7 @@ unlines l = case uncons l of
   Nothing -> ""
   Just a  -> if null a.tail then a.head else a.head <> "\n" <> unlines a.tail
 
-setVertexAttrib :: GL.GLuint -> Stream Buffer -> GFX Unit
+setVertexAttrib :: forall a. GL.GLuint -> Stream (Buffer a) -> GFX Unit
 setVertexAttrib i val = case val of
   ConstFloat v -> setAFloat i v
   ConstV2F v   -> setAV2F i v
@@ -151,7 +147,7 @@ foreign import uniform1iv_:: forall eff. Fn2 WebGLUniformLocation
   | uni.uType == _FLOAT_VEC4    = uniform4fv_ uni.uLocation (asArrayBuffer value)
 -}
 -- sets value based uniforms only (does not handle textures)
---setUniform :: forall a . GL.WebGLUniformLocation -> GLUniform -> GFX Unit
+setUniform :: GL.WebGLUniformLocation -> GLUniform -> GFX Unit
 setUniform i uni = case uni of
   UniBool  r -> GL.uniform1iv_ i r
   UniV2B   r -> GL.uniform2iv_ i r
@@ -169,7 +165,7 @@ setUniform i uni = case uni of
   UniM33F  r -> GL.uniformMatrix3fv_ i false r
   UniM44F  r -> GL.uniformMatrix4fv_ i false r
   UniFTexture2D r -> pure unit
-  _ -> throwException $ error "internal error (setUniform)!"
+--  _ -> throwException $ error "internal error (setUniform)!"
 
 primitiveToGLType :: Primitive -> GL.GLenum
 primitiveToGLType p = case p of
@@ -197,10 +193,10 @@ foreign import newInt8View :: ArrayBuffer -> Int -> Int -> GFX ArrayView
 foreign import newInt16View :: ArrayBuffer -> Int -> Int -> GFX ArrayView
 foreign import newFloatView :: ArrayBuffer -> Int -> Int -> GFX ArrayView
 foreign import setArrayView :: ArrayView -> Array Number -> GFX Unit
-foreign import nullWebGLBuffer :: GL.WebGLBuffer
-foreign import bufferDataAlloc :: forall eff. GL.GLenum -> Int -> GL.GLenum -> GFX Unit
-foreign import bufferSubDataArrayBuffer :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayBuffer -> GFX Unit
-foreign import bufferSubDataArrayView :: forall eff. GL.GLenum -> GL.GLintptr -> ArrayView -> GFX Unit
+foreign import nullWebGLBuffer :: forall a. (GL.WebGLBuffer a)
+foreign import bufferDataAlloc :: GL.GLenum -> Int -> GL.GLenum -> GFX Unit
+foreign import bufferSubDataArrayBuffer :: GL.GLenum -> GL.GLintptr -> ArrayBuffer -> GFX Unit
+foreign import bufferSubDataArrayView :: GL.GLenum -> GL.GLintptr -> ArrayView -> GFX Unit
 
 compileTexture :: TextureDescriptor -> GFX GLTexture
 compileTexture (TextureDescriptor txD) = do
@@ -238,26 +234,26 @@ textureDataTypeToGLType Color a = case a of
     FloatT RGBA -> pure GL._RGBA
     IntT   RGBA -> pure GL._RGBA
     WordT  RGBA -> pure GL._RGBA
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
+    b          -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show b
 textureDataTypeToGLType Depth a = case a of
     FloatT Red  -> pure GL._DEPTH_COMPONENT
     WordT  Red  -> pure GL._DEPTH_COMPONENT
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
+    b           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show b
 textureDataTypeToGLType Stencil a = case a of
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
+    b           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show b
 
 textureDataTypeToGLArityType :: ImageSemantic -> TextureDataType -> GFX GL.GLenum
 textureDataTypeToGLArityType Color a = case a of
     FloatT RGBA -> pure GL._RGBA
     IntT   RGBA -> pure GL._RGBA
     WordT  RGBA -> pure GL._RGBA
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
+    b           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show b
 textureDataTypeToGLArityType Depth a = case a of
     FloatT Red  -> pure GL._DEPTH_COMPONENT
     WordT  Red  -> pure GL._DEPTH_COMPONENT
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
+    b           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show b
 textureDataTypeToGLArityType Stencil a = case a of
-    a           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show a
+    b           -> throwException $ error $ "FIXME: This texture format is not yet supported" <> show b
 
 foreign import texImage2DNull_
     :: GL.GLenum->

@@ -2,36 +2,27 @@ module LambdaCube.WebGL.Backend where
 
 import Prelude
 import Control.Monad.Eff.Console as C
-import Data.Maybe (fromJust)
-import Data.Int.Bits
-
-import Graphics.WebGLRaw as GL
-import Control.Monad.Eff.Exception
-import Control.Monad.Eff.WebGL
-import Control.Monad.Eff.Ref
-import Control.Monad.Eff
-import Control.Monad
-import Control.Bind
-import Data.Foldable
-import Data.Traversable
-import Data.StrMap as StrMap
-import Data.StrMap.Unsafe as StrMap
-import Data.Map as Map
-import Data.Tuple
-import Data.Int
-import Data.Maybe
-import Data.Array
+import Data.ArrayBuffer.Types as AB
 import Data.List as List
-import Data.Unfoldable (replicate, replicateA)
-import Partial.Unsafe (unsafePartial, unsafeCrashWith)
-
-import LambdaCube.IR
-import LambdaCube.LinearBase
-import LambdaCube.PipelineSchema
-import LambdaCube.WebGL.Type
-import LambdaCube.WebGL.Util
-import LambdaCube.WebGL.Input
-import LambdaCube.WebGL.Data
+import Data.Map as Map
+import Graphics.WebGLRaw as GL
+import Control.Monad.Eff.Exception (error, throwException)
+import Control.Monad.Eff.Ref (Ref, modifyRef, newRef, readRef, writeRef)
+import Data.Array (concat, concatMap, filter, findIndex, foldM, head, length, nub, replicate, unsafeIndex, unzip, updateAt, zip, (..), (:))
+import Data.Int.Bits ((.|.))
+import Data.Maybe (Maybe(..), fromJust, isJust, isNothing)
+import Data.StrMap (StrMap, fromFoldable, keys, lookup, member, size, toUnfoldable, values, mapWithKey) as StrMap
+import Data.StrMap.Unsafe (unsafeIndex) as StrMap
+import Data.Traversable (all, any, foldl, foldr, for, for_, sequence, traverse, traverse_)
+import Data.Tuple (Tuple(..))
+import LambdaCube.IR (AccumulationContext(..), ArrayValue(..), Blending(..), ClearImage(..), Command(..), ComparisonFunction(..), CullMode(..), FetchPrimitive(..), FragmentOperation(..), FrontFace(..), ImageRef(..), ImageSemantic(..), InputType(..), Parameter(..), Pipeline(..), PointSize(..), PolygonOffset(..), Program(..), RasterContext(..), RenderTarget(..), Slot(..), StreamData(..), TargetItem(..), TextureDescriptor(..), TextureType(..), Value(..))
+import LambdaCube.LinearBase (V2(..), V3(..), V4(..))
+import LambdaCube.PipelineSchema (StreamType(..))
+import LambdaCube.WebGL.Data (compileBuffer)
+import LambdaCube.WebGL.Input (createObjectCommands)
+import LambdaCube.WebGL.Type (ArrayType(..), Buffer, GFX, GLObjectCommand(..), GLProgram, GLRenderTarget, GLStream, GLTexture, GLUniform(..), InputConnection(..), LCArray(..), Primitive(..), Stream(..), TextureData(..), WebGLPipeline, WebGLPipelineInput, sizeOfArrayType, toArray)
+import LambdaCube.WebGL.Util (arrayTypeToGLType, blendEquationToGLType, blendingFactorToGLType, comparisonFunctionToGLType, compileTexture, primitiveToGLType, setUniform, setVertexAttrib, toStreamType)
+import Partial.Unsafe (unsafeCrashWith, unsafePartial)
 
 setupRasterContext :: RasterContext -> GFX Unit
 setupRasterContext = cvt
@@ -132,9 +123,9 @@ setupAccumulationContext (AccumulationContext {accViewportName: n, accOperations
         cvtC 0 xs
 
     cvtC :: Int -> List.List FragmentOperation -> GFX Unit
-    cvtC i (List.Cons (ColorOp b m) xs) = do
+    cvtC i (List.Cons (ColorOp bm m) xs) = do
         -- TODO
-        case b of
+        case bm of
             NoBlending -> do
                 -- FIXME: requires GL 3.1
                 --glDisablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
@@ -190,7 +181,7 @@ clearRenderTarget values = do
     GL.clear_ m.mask
 
 compileProgram :: Program -> GFX GLProgram
-compileProgram (Program p) = do
+compileProgram (Program prg) = do
     po <- GL.createProgram_
     let createAndAttach src t = do
           o <- GL.createShader_ t
@@ -204,8 +195,8 @@ compileProgram (Program p) = do
           --putStr "    + compile shader source: " >> printGLStatus
           pure o
 
-    objV <- createAndAttach p.vertexShader GL._VERTEX_SHADER
-    objF <- createAndAttach p.fragmentShader GL._FRAGMENT_SHADER
+    objV <- createAndAttach prg.vertexShader GL._VERTEX_SHADER
+    objF <- createAndAttach prg.fragmentShader GL._FRAGMENT_SHADER
 
     GL.linkProgram_ po
     prgLog <- GL.getProgramInfoLog_ po
@@ -215,21 +206,21 @@ compileProgram (Program p) = do
     status <- GL.getProgramParameter_ po GL._LINK_STATUS
     when (status /= true) $ throwException $ error "link program failed!"
 
-    uniformLocation <- StrMap.fromFoldable <$> for (StrMap.toList p.programUniforms) (\(Tuple uniName uniType) -> do
-      loc <- GL.getUniformLocation_ po uniName
-      pure $ Tuple uniName loc)
+    uniformLocation <- sequence $ (flip StrMap.mapWithKey) prg.programUniforms $ \n t -> do
+      l <- GL.getUniformLocation_ po n
+      pure l
 
-    samplerLocation <- StrMap.fromFoldable <$> for (StrMap.toList p.programInTextures) (\(Tuple uniName uniType) -> do
-      loc <- GL.getUniformLocation_ po uniName
-      pure $ Tuple uniName loc)
+    samplerLocation <- sequence $ (flip StrMap.mapWithKey) prg.programInTextures $ \n t -> do
+      l <- GL.getUniformLocation_ po n
+      pure l
 
-    streamLocation <- StrMap.fromFoldable <$> for (StrMap.toList p.programStreams) (\(Tuple streamName (Parameter s)) -> do
+    streamLocation <- sequence $ (flip StrMap.mapWithKey) prg.programStreams $ \streamName (Parameter s) -> do
       loc <- GL.getAttribLocation_ po streamName
       C.log $ "attrib location " <> streamName <>" " <> show loc
-      pure $ Tuple streamName {location: loc, slotAttribute: s.name})
-
+      pure $ {location: loc, slotAttribute: s.name}
+      
     -- drop render textures, keep input textures
-    let texUnis = filter (\n -> StrMap.member n p.programUniforms) $ StrMap.keys samplerLocation
+    let texUnis = filter (\n -> StrMap.member n prg.programUniforms) $ StrMap.keys samplerLocation
     pure { program: po
            , shaders: [objV,objF]
            , inputUniforms: uniformLocation
@@ -278,7 +269,6 @@ compileRenderTarget texs glTexs (RenderTarget rt) = unsafePartial $ do
                   attach _ _ = throwException $ error "invalid texture format!"
                   go a (TargetItem {targetSemantic:Stencil, targetRef:Just img}) = do
                       throwException $ error "Stencil support is not implemented yet!"
-                      pure a
                   go a (TargetItem {targetSemantic: Depth,targetRef: Just img}) = do
                       attach GL._DEPTH_ATTACHMENT img
                       pure a
@@ -301,7 +291,7 @@ compileStreamData (StreamData s) = unsafePartial $ do
       compileAttr (VIntArray v) = Array ArrInt16 $ toArray v
       compileAttr (VWordArray v) = Array ArrWord16 $ toArray v
       --TODO: compileAttr (VBoolArray v) = Array ArrWord32 (length v) (withV withArray v)
-  Tuple indexMap arrays <- pure $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(fromJust $ fromNumber $ StrMap.size s.streamData -1.0)) $ StrMap.toUnfoldable s.streamData
+  Tuple indexMap arrays <- pure $ unzip $ map (\(Tuple i (Tuple n d)) -> Tuple (Tuple n i) (compileAttr d)) $ zip (0..(StrMap.size s.streamData -1)) $ StrMap.toUnfoldable s.streamData
   let getLength n = do
         l <- case StrMap.lookup n s.streamData of
             Just (VFloatArray v) -> pure $ length v
@@ -343,7 +333,7 @@ compileStreamData (StreamData s) = unsafePartial $ do
     , program: fromJust $ head $ s.streamPrograms
     }
 
-createStreamCommands :: StrMap.StrMap (Ref Int) -> StrMap.StrMap GLUniform -> StrMap.StrMap (Stream Buffer) -> Primitive -> GLProgram -> Array GLObjectCommand
+createStreamCommands :: StrMap.StrMap (Ref Int) -> StrMap.StrMap GLUniform -> StrMap.StrMap (Stream (Buffer AB.Float32)) -> Primitive -> GLProgram -> Array GLObjectCommand
 createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `append` streamCmds `append` [drawCmd]
   where
     -- object draw command
@@ -353,7 +343,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
         streamLen a = case a of
           Stream s  -> [s.length]
           _         -> []
-        count = unsafePartial $ (concatMap streamLen $ List.toUnfoldable $ StrMap.values attrs) `unsafeIndex` 0
+        count = unsafePartial $ (concatMap streamLen $ StrMap.values attrs) `unsafeIndex` 0
 
     -- object uniform commands
     -- texture slot setup commands
@@ -369,10 +359,10 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
           in GLBindTexture txTarget texUnit u
 
     -- object attribute stream commands
-    streamCmds = unsafePartial $ flip map (List.toUnfoldable $ StrMap.values prg.inputStreams) $ \is -> let
-        s = attrs `StrMap.unsafeIndex` is.slotAttribute
+    streamCmds = unsafePartial $ flip map (StrMap.values prg.inputStreams) $ \is -> let
+        x = attrs `StrMap.unsafeIndex` is.slotAttribute
         i = is.location
-      in case s of
+      in case x of
           Stream s -> let
               desc = s.buffer.arrays `unsafeIndex` s.arrIdx
               glType      = arrayTypeToGLType desc.arrType
@@ -392,7 +382,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds `app
 allocPipeline :: Pipeline -> GFX WebGLPipeline
 allocPipeline (Pipeline p) = do
   -- enable extensions
-  GL.getExtension_ "WEBGL_depth_texture"
+  --_ <- GL.getExtension_ "WEBGL_depth_texture"
   texs <- traverse compileTexture p.textures
   trgs <- traverse (compileRenderTarget p.textures texs) p.targets
   prgs <- traverse compileProgram p.programs
@@ -476,8 +466,8 @@ renderPipeline p = unsafePartial $ do
                 for_ s.sortedObjects $ \(Tuple _ obj) -> do
                   enabled <- readRef obj.enabled
                   when enabled $ do
-                    cmd <- readRef obj.commands
-                    renderSlot $ (cmd `unsafeIndex` ic.id) `unsafeIndex` progIdx
+                    c <- readRef obj.commands
+                    renderSlot $ (c `unsafeIndex` ic.id) `unsafeIndex` progIdx
       _ -> pure unit
 
 renderSlot :: Array GLObjectCommand -> GFX Unit
@@ -524,9 +514,9 @@ disposePipeline p = do
   -}
 
 setPipelineInput :: WebGLPipeline -> Maybe WebGLPipelineInput -> GFX Unit
-setPipelineInput p input' = unsafePartial $ do
+setPipelineInput pl input' = unsafePartial $ do
     -- TODO: check matching input schema
-    ic' <- readRef p.input
+    ic' <- readRef pl.input
     case ic' of
         Nothing -> pure unit
         Just (InputConnection ic) -> do
@@ -543,24 +533,24 @@ setPipelineInput p input' = unsafePartial $ do
             - update used slots, and generate object commands for objects in the related slots
     -}
     case input' of
-        Nothing -> writeRef p.input Nothing
+        Nothing -> writeRef pl.input Nothing
         Just input -> do
             oldPipelineV <- readRef input.pipelines
             Tuple idx shouldExtend <- case findIndex isNothing oldPipelineV of
                 Nothing -> do
                     -- we don't have empty space, hence we double the vector size
                     let len = length oldPipelineV
-                    modifyRef input.pipelines $ \v -> fromJust $ updateAt len (Just p) (concat [v,replicate len Nothing])
+                    modifyRef input.pipelines $ \v -> fromJust $ updateAt len (Just pl) (concat [v,replicate len Nothing])
                     pure $ Tuple len (Just len)
                 Just i -> do
-                    modifyRef input.pipelines $ \v -> fromJust $ updateAt i (Just p) v
+                    modifyRef input.pipelines $ \v -> fromJust $ updateAt i (Just pl) v
                     pure $ Tuple i Nothing
             -- create input connection
-            pToI <- for p.slotNames $ \n -> case StrMap.lookup n input.slotMap of
+            pToI <- for pl.slotNames $ \n -> case StrMap.lookup n input.slotMap of
               Nothing -> throwException $ error "internal error: unknown slot name in input"
               Just i -> pure i
-            let iToP = foldr (\(Tuple i v) p -> fromJust $ updateAt v (Just i) p) (replicate (fromJust $ fromNumber $ StrMap.size input.slotMap) Nothing) (zip (0..length pToI) pToI)
-            writeRef p.input $ Just $ InputConnection {id: idx, input: input, slotMapPipelineToInput: pToI, slotMapInputToPipeline: iToP}
+            let iToP = foldr (\(Tuple i v) p -> fromJust $ updateAt v (Just i) p) (replicate (StrMap.size input.slotMap) Nothing) (zip (0..length pToI) pToI)
+            writeRef pl.input $ Just $ InputConnection {id: idx, input: input, slotMapPipelineToInput: pToI, slotMapInputToPipeline: iToP}
 
             -- generate object commands for related slots
             {-
@@ -571,17 +561,17 @@ setPipelineInput p input' = unsafePartial $ do
                             generate object commands
             -}
             let topUnis = input.uniformSetup
-                emptyV  = replicate (length p.programs) []
+                emptyV  = replicate (length pl.programs) []
                 extend v = case shouldExtend of
                     Nothing -> v
                     Just l  -> concat [v,replicate l []]
-            for_ (zip pToI p.slotPrograms) $ \(Tuple slotIdx prgs) -> do
+            for_ (zip pToI pl.slotPrograms) $ \(Tuple slotIdx prgs) -> do
                 slot <- readRef $ input.slotVector `unsafeIndex` slotIdx
                 for_ (Map.values slot.objectMap) $ \obj -> do
-                    let updateCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands p.texUnitMapping topUnis obj (p.programs `unsafeIndex` prgIdx)) v
+                    let updateCmds v prgIdx = fromJust $ updateAt prgIdx (createObjectCommands pl.texUnitMapping topUnis obj (pl.programs `unsafeIndex` prgIdx)) v
                         cmdV = foldl updateCmds emptyV prgs
                     modifyRef obj.commands $ \v -> fromJust $ updateAt idx cmdV (extend v)
 
             -- generate stream commands
-            for_ p.streams $ \s -> do
-              writeRef s.commands $ createStreamCommands p.texUnitMapping topUnis s.attributes s.primitive (p.programs `unsafeIndex` s.program)
+            for_ pl.streams $ \s -> do
+              writeRef s.commands $ createStreamCommands pl.texUnitMapping topUnis s.attributes s.primitive (pl.programs `unsafeIndex` s.program)

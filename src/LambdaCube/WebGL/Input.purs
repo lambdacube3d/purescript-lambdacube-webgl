@@ -1,32 +1,25 @@
 module LambdaCube.WebGL.Input where
 
 import Prelude
-import Control.Bind
-import Control.Monad
-import Control.Monad.Eff
-import Control.Monad.Eff.Ref
-import Control.Monad.Eff.Exception
-import Data.Map as Map
-import Data.StrMap as StrMap
-import Data.StrMap.Unsafe as StrMap
-import Data.Foldable
-import Data.Traversable
-import Data.Maybe
---import Data.Maybe.Unsafe (fromJust)
-import Data.Tuple
-import Data.Array
-import Data.Int
 import Data.List as List
-import Data.Unfoldable (replicate, replicateA)
-import Partial.Unsafe (unsafePartial)
-
-import LambdaCube.IR
-import LambdaCube.LinearBase
-import LambdaCube.PipelineSchema
-import LambdaCube.WebGL.Type
-import LambdaCube.WebGL.Util
-
+import Data.Map as Map
+import Data.ArrayBuffer.Types as AB
+import Data.StrMap (StrMap, empty, fromFoldable, keys, lookup, size, toUnfoldable, union, values) as StrMap
+import Data.StrMap.Unsafe (unsafeIndex) as StrMap
 import Graphics.WebGLRaw as GL
+import Control.Monad.Eff.Exception (error, throwException)
+import Control.Monad.Eff.Ref (Ref, modifyRef, newRef, readRef, writeRef)
+import Data.Array (concat, concatMap, length, replicate, sortBy, unsafeIndex, unzip, updateAt)
+import Data.Maybe (Maybe(..), fromJust)
+import Data.Traversable (foldl, for, for_, traverse)
+import Data.Tuple (Tuple(..))
+import Data.Unfoldable (replicateA)
+import LambdaCube.IR (InputType, Pipeline(..), Slot(..))
+import LambdaCube.LinearBase (Bool, Float, Int32, M22F, M33F, M44F, V2(..), V2B, V2F, V2I, V2U, V3B, V3F, V3I, V4B, V4F, V4I)
+import LambdaCube.PipelineSchema (ObjectArraySchema(..), PipelineSchema(..), StreamType(..))
+import LambdaCube.WebGL.Type (Buffer, GFX, GLObject, GLObjectCommand(..), GLProgram, GLUniform, IndexStream, InputConnection(..), InputSetter(..), OrderJob(..), Primitive, SetterFun, Stream(..), TextureData, WebGLPipelineInput, sizeOfArrayType, streamToStreamType)
+import LambdaCube.WebGL.Util (arrayTypeToGLType, mkUniformSetter, primitiveToFetchPrimitive, primitiveToGLType, toStreamType, unlines)
+import Partial.Unsafe (unsafePartial)
 
 -- API
 schemaFromPipeline :: Pipeline -> GFX PipelineSchema
@@ -51,7 +44,7 @@ mkUniform l = do
 mkWebGLPipelineInput :: PipelineSchema -> GFX WebGLPipelineInput
 mkWebGLPipelineInput (PipelineSchema sch) = unsafePartial $ do
   let sm = StrMap.fromFoldable $ List.zip (List.fromFoldable $ StrMap.keys sch.objectArrays) (List.range 0 len)
-      len = fromJust $ fromNumber $ StrMap.size sch.objectArrays
+      len = StrMap.size sch.objectArrays
   Tuple setters unis <- mkUniform $ StrMap.toUnfoldable sch.uniforms
   slotV <- replicateA len $ newRef {objectMap: Map.empty :: Map.Map Int GLObject, sortedObjects: [], orderJob: Ordered}
   seed <- newRef 0
@@ -68,7 +61,7 @@ mkWebGLPipelineInput (PipelineSchema sch) = unsafePartial $ do
     , pipelines     : ppls
     }
 
-addObject :: WebGLPipelineInput -> String -> Primitive -> Maybe (IndexStream Buffer) -> StrMap.StrMap (Stream Buffer) -> Array String -> GFX GLObject
+addObject :: WebGLPipelineInput -> String -> Primitive -> Maybe (IndexStream (Buffer AB.Int32)) -> StrMap.StrMap (Stream (Buffer AB.Float32)) -> Array String -> GFX GLObject
 addObject input slotName prim indices attribs uniformNames = unsafePartial $ do
     PipelineSchema schema <- pure input.schema
     for_ uniformNames $ \n -> case StrMap.lookup n schema.uniforms of
@@ -263,7 +256,7 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
         streamLen a = case a of
           Stream s  -> [s.length]
           _         -> []
-        count = (concatMap streamLen $ List.toUnfoldable $ StrMap.values obj.attributes) `unsafeIndex` 0
+        count = (concatMap streamLen $ StrMap.values obj.attributes) `unsafeIndex` 0
       in case obj.indices of
         Nothing -> GLDrawArrays prim 0 count
         Just is -> let 
@@ -290,10 +283,10 @@ createObjectCommands texUnitMap topUnis obj prg = concat [objUniCmds, objStreamC
           in GLBindTexture txTarget texUnit u
 
     -- object attribute stream commands
-    objStreamCmds = unsafePartial $ flip map (List.toUnfoldable $ StrMap.values prg.inputStreams) $ \is -> let
-        s = obj.attributes `StrMap.unsafeIndex` is.slotAttribute
+    objStreamCmds = unsafePartial $ flip map (StrMap.values prg.inputStreams) $ \is -> let
+        x = obj.attributes `StrMap.unsafeIndex` is.slotAttribute
         i = is.location
-      in case s of
+      in case x of
           Stream s -> let
               desc = s.buffer.arrays `unsafeIndex` s.arrIdx
               glType      = arrayTypeToGLType desc.arrType

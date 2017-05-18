@@ -1,0 +1,2 @@
+pulp build -I examples -m Example1 --no-psa --to example1.js
+pulp build -I examples -m Simple --no-psa --to simple.js
