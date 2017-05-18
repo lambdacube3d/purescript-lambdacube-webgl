@@ -1,25 +1,20 @@
 module LambdaCube.WebGL.Data where
 
 import Prelude
-import Control.Monad.Eff.Console as C
-import Control.Monad
-import Control.Monad.Eff
-import Control.Monad.Eff.Exception
+import Control.Monad.Eff.Exception (error, throwException)
 
 import Graphics.WebGLRaw as GL
 import Graphics.WebGLTexture as GLTex
-import Data.Maybe
-import Data.Tuple
-import Data.Array
-import Data.Foldable
-import Data.Traversable
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
+import Data.Array (length, last, (!!), zip, take)
+--import Data.Foldable
+import Data.Traversable (for, for_, scanl)
 
-import LambdaCube.IR
-import LambdaCube.LinearBase
-import LambdaCube.WebGL.Type
-import LambdaCube.WebGL.Util
+import LambdaCube.WebGL.Type (ArrayType(..), Buffer, GFX, LCArray(..), TextureData(..), sizeOfArrayType)
+import LambdaCube.WebGL.Util (arrayTypeToGLType, bufferDataAlloc, bufferSubDataArrayBuffer, bufferSubDataArrayView, loadImage_, newArrayBuffer, newFloatView, newInt16View, newInt8View, newWord16View, newWord8View, nullWebGLBuffer, setArrayView, texImage2D__)
 
-compileBuffer :: Array LCArray -> GFX Buffer
+compileBuffer :: forall a. Array LCArray -> GFX (Buffer a)
 compileBuffer arrs = do
     let offsets = [0] `append` scanl (\s (Array t a) -> s + sizeOfArrayType t * length a) 0 arrs -- BUG:  scanl (+) 0 [1,1] == [1,2] =!= [0,1,2]
         size = case last offsets of
@@ -46,7 +41,7 @@ compileBuffer arrs = do
     GL.bindBuffer_ GL._ARRAY_BUFFER nullWebGLBuffer
     pure {arrays: descs, glBuffer: bo, buffer: b}
 
-updateBuffer :: Buffer -> Array (Tuple Int LCArray) -> GFX Unit
+updateBuffer :: forall a. Buffer a -> Array (Tuple Int LCArray) -> GFX Unit
 updateBuffer b arrs = do
   for_ arrs $ \(Tuple i (Array t a)) -> case b.arrays !! i of
     Nothing -> throwException $ error "wrong index"

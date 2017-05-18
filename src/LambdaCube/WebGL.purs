@@ -1,17 +1,17 @@
 module LambdaCube.WebGL
-  ( module LambdaCube.IR
-  , module LambdaCube.LinearBase
-  , module LambdaCube.PipelineSchema
-  , module LambdaCube.WebGL.Type
-  , module LambdaCube.WebGL.Backend
-  , module LambdaCube.WebGL.Data
-  , module LambdaCube.WebGL.Input
+  ( module IR
+  , module LB
+  , module PS
+  , module WT
+  , module WB
+  , module WD
+  , module WI
   ) where
 
-import LambdaCube.IR
-import LambdaCube.LinearBase
-import LambdaCube.PipelineSchema
-import LambdaCube.WebGL.Type
-import LambdaCube.WebGL.Backend
-import LambdaCube.WebGL.Data
-import LambdaCube.WebGL.Input
+import LambdaCube.IR as IR
+import LambdaCube.LinearBase as LB
+import LambdaCube.PipelineSchema as PS
+import LambdaCube.WebGL.Type as WT
+import LambdaCube.WebGL.Backend as WB
+import LambdaCube.WebGL.Data as WD
+import LambdaCube.WebGL.Input as WI

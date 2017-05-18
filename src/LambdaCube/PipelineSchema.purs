@@ -3,22 +3,17 @@
 
 module LambdaCube.PipelineSchema where
 import Prelude
-import Data.Generic
+import Data.Generic (class Generic, gEq, gShow)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
-import Data.StrMap (StrMap(..))
-import Data.Map (Map(..))
-import Data.List (List(..))
-import LambdaCube.LinearBase
+import Data.StrMap (StrMap)
 
 import Data.Argonaut.Encode.Combinators ((~>), (:=))
 import Data.Argonaut.Decode.Combinators ((.?))
 import Data.Argonaut.Core (jsonEmptyObject)
-import Data.Argonaut.Printer (printJson)
-import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Argonaut.Encode (class EncodeJson)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 
-import LambdaCube.IR
+import LambdaCube.IR (FetchPrimitive, InputType)
 
 data StreamType
   = Attribute_Word

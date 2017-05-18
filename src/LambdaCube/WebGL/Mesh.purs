@@ -1,31 +1,23 @@
 module LambdaCube.WebGL.Mesh where
 
 import Prelude
-import Control.Monad.Eff
-import Control.Monad.Eff.Exception
-
+import Data.ArrayBuffer.Types as AB
 import Data.StrMap as StrMap
-import Data.Maybe
-import Data.Maybe (fromJust)
-import Data.Array
-import Data.Tuple
-import Data.Int
-import Data.List as List
-
+import Control.Monad.Eff.Exception (error, throwException)
+import Data.Array (filter, length, range, zipWith)
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
+import LambdaCube.Mesh (Mesh(..), MeshAttribute(..), MeshPrimitive(..))
+import LambdaCube.PipelineSchema (ObjectArraySchema(..), PipelineSchema(..), StreamType(..))
+import LambdaCube.WebGL.Data (compileBuffer)
+import LambdaCube.WebGL.Input (addObject)
+import LambdaCube.WebGL.Type (ArrayType(..), Buffer, GFX, GLObject, IndexStream, LCArray(..), Primitive(..), Stream(..), WebGLPipelineInput, toArray)
 import Partial.Unsafe (unsafeCrashWith, unsafePartial)
-
-import LambdaCube.Mesh
-import LambdaCube.IR
-import LambdaCube.LinearBase
-import LambdaCube.PipelineSchema
-import LambdaCube.WebGL.Type
-import LambdaCube.WebGL.Data
-import LambdaCube.WebGL.Input
 
 type GPUData =
     { primitive :: Primitive
-    , streams   :: StrMap.StrMap (Stream Buffer)
-    , indices   :: Maybe (IndexStream Buffer)
+    , streams   :: StrMap.StrMap (Stream (Buffer AB.Float32))
+    , indices   :: Maybe (IndexStream (Buffer AB.Int32))
     }
 
 data GPUMesh = GPUMesh
@@ -40,23 +32,23 @@ addMesh input slotName (GPUMesh mesh) objUniNames = case input.schema of
     Just (ObjectArraySchema slotSchema) -> do
       -- select proper attributes
       let filterStream (Tuple n s) = StrMap.member n slotSchema.attributes
-      addObject input slotName mesh.gpuData.primitive mesh.gpuData.indices (StrMap.fromFoldable $ List.filter filterStream $ StrMap.toList mesh.gpuData.streams) objUniNames
+      addObject input slotName mesh.gpuData.primitive mesh.gpuData.indices (StrMap.fromFoldable $ filter filterStream $ StrMap.toUnfoldable mesh.gpuData.streams) objUniNames      
 
 compileMesh :: Mesh -> GFX GPUMesh
 compileMesh (Mesh mesh) = unsafePartial $ do
     let mkIndexBuf v = do
             iBuf <- compileBuffer [Array ArrWord16 (toArray v)]
             pure $ Just {buffer: iBuf, arrIdx: 0, start: 0, length: length v}
-    vBuf <- compileBuffer $ map meshAttrToArray $ List.toUnfoldable (StrMap.values mesh.mAttributes)
+    vBuf <- compileBuffer $ map meshAttrToArray $ StrMap.values mesh.mAttributes
     Tuple prim indices <- case mesh.mPrimitive of
         P_Points            -> pure $ Tuple PointList     Nothing
         P_TriangleStrip     -> pure $ Tuple TriangleStrip Nothing
         P_Triangles         -> pure $ Tuple TriangleList  Nothing
         P_TriangleStripI v  -> Tuple TriangleStrip <$> mkIndexBuf v
         P_TrianglesI v      -> Tuple TriangleList <$> mkIndexBuf v
-    let streams = StrMap.fromFoldable $ List.zipWith (\i (Tuple n a) -> Tuple n (meshAttrToStream vBuf i a))
-                                                     (List.range 0 $ fromJust $ fromNumber $ StrMap.size mesh.mAttributes)
-                                                     (StrMap.toList mesh.mAttributes)
+    let streams = StrMap.fromFoldable $ zipWith (\i (Tuple n a) -> Tuple n (meshAttrToStream vBuf i a))
+                                                     (range 0 $ StrMap.size mesh.mAttributes)
+                                                     (StrMap.toUnfoldable mesh.mAttributes)
         gpuData = {primitive: prim, streams: streams, indices: indices}
     pure $ GPUMesh {meshData: Mesh mesh, gpuData: gpuData}
 
@@ -73,7 +65,7 @@ meshAttrToArray a = case a of
 {-
   A_Flat _ v  -> Array ArrFloat v
 -}
-meshAttrToStream :: Buffer -> Int -> MeshAttribute -> Stream Buffer
+meshAttrToStream :: (Buffer AB.Float32) -> Int -> MeshAttribute -> Stream (Buffer AB.Float32)
 meshAttrToStream b i a = Stream $ case a of
   A_Float v   -> {sType: Attribute_Float, buffer: b, arrIdx: i , start: 0, length: length v}
   A_V2F   v   -> {sType: Attribute_V2F  , buffer: b, arrIdx: i , start: 0, length: length v}
